@@ -1,0 +1,32 @@
+{
+  "name": "icea-lion-testcase-review",
+  "version": "1.0.0",
+  "description": "Review client testcases, map Kenya pre-requisites, export SimplifyQA Excel",
+  "main": "server.js",
+  "scripts": {
+    "prestart": "node scripts/free-port.js",
+    "start": "node server.js",
+    "start:window": "cmd /c start \"ICEA LION UI\" cmd /k \"node scripts/free-port.js && node server.js\"",
+    "ui": "node scripts/free-port.js && node server.js",
+    "map": "node map_to_simplifyqa.js",
+    "map:all": "node map_to_simplifyqa.js --all",
+    "test": "node test/e2e.js"
+  },
+  "keywords": [
+    "simplifyqa",
+    "testcase",
+    "icea-lion"
+  ],
+  "author": "Simplify3x",
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "mammoth": "^1.9.0",
+    "multer": "^2.0.1",
+    "xlsx": "^0.18.5"
+  }
+}

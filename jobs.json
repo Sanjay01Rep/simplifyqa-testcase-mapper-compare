@@ -1,0 +1,19 @@
+{
+  "defaults": {
+    "Versions": "v1.0",
+    "TestcaseType": "WEB",
+    "Entity": "Life UG"
+  },
+  "jobs": [
+    {
+      "file": "FA Payroll.xlsx",
+      "Module": "FA Payroll",
+      "Entity": "Life UG"
+    },
+    {
+      "file": "Investment Managment.xlsx",
+      "Module": "Investment Management",
+      "Entity": "Life UG"
+    }
+  ]
+}

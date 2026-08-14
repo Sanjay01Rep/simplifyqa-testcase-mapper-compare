@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local / generated outputs
+Generated Excel file/
+Client doc/
+Kenya doc/
+Kenya orginial testcase/
+
+# Logs & OS junk
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~

@@ -1,0 +1,807 @@
+const fs = require("fs");
+const http = require("http");
+const path = require("path");
+const os = require("os");
+const { execSync } = require("child_process");
+const express = require("express");
+const multer = require("multer");
+const XLSX = require("xlsx");
+const {
+  loadProperties,
+  loadJobs,
+  resolveJobConfig,
+  isLockFile,
+  nowStamp,
+  safeBaseName,
+  ensureDir,
+  mapFromBuffers,
+  writeWorkbook,
+  writeLog,
+  isXlsxFileName,
+} = require("./lib/mapper");
+const { ENTITIES, MODULES } = require("./lib/options");
+const { compareClientDocs, writeCompareLog } = require("./lib/compare");
+
+const ROOT = __dirname;
+const CLIENT_DIR = path.join(ROOT, "Client doc");
+const KENYA_DIR = path.join(ROOT, "Kenya doc");
+const KENYA_ORIGINAL_DIR = path.join(ROOT, "Kenya orginial testcase");
+const KENYA_DIRS = [KENYA_DIR, KENYA_ORIGINAL_DIR];
+const XLSX_ONLY_MSG = "Only .xlsx files are supported. Please choose a .xlsx workbook.";
+const OUT_DIR = path.join(ROOT, "Generated Excel file");
+const LOG_DIR = path.join(OUT_DIR, "logs");
+const PROPS_PATH = path.join(ROOT, "mapping.properties");
+const JOBS_PATH = path.join(ROOT, "jobs.json");
+const HISTORY_PATH = path.join(LOG_DIR, "run-history.json");
+const PORT = Number(process.env.PORT || 3100);
+const HISTORY_LIMIT = 20;
+
+const app = express();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
+
+app.use(express.json({ limit: "4mb" }));
+
+app.use((req, res, next) => {
+  res.setHeader("X-ICEA-Lion", "testcase-review");
+  const start = Date.now();
+  res.on("finish", () => {
+    if (String(req.originalUrl || "").startsWith("/api")) {
+      console.log(
+        `[api] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - start}ms)`
+      );
+    }
+  });
+  next();
+});
+
+function withMulter(middleware) {
+  return (req, res, next) => {
+    middleware(req, res, (err) => {
+      if (!err) return next();
+      const message =
+        err.code === "LIMIT_FILE_SIZE"
+          ? "File is too large. Maximum size is 25 MB."
+          : err.message || XLSX_ONLY_MSG;
+      res.status(400).json({ ok: false, message });
+    });
+  };
+}
+
+function listXlsxUnder(dir, relativeRoot) {
+  const out = [];
+  if (!fs.existsSync(dir)) return out;
+  function walk(current) {
+    for (const name of fs.readdirSync(current)) {
+      if (isLockFile(name) || name === "node_modules") continue;
+      const full = path.join(current, name);
+      let st;
+      try {
+        st = fs.statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        walk(full);
+      } else if (isXlsxFileName(name)) {
+        out.push({
+          name,
+          relative: path.relative(relativeRoot, full).split(path.sep).join("/"),
+          size: st.size,
+        });
+      }
+    }
+  }
+  walk(dir);
+  return out;
+}
+
+function listClientFiles() {
+  return listXlsxUnder(CLIENT_DIR, CLIENT_DIR);
+}
+
+function listKenyaFiles() {
+  const seen = new Set();
+  const out = [];
+  for (const dir of KENYA_DIRS) {
+    for (const file of listXlsxUnder(dir, ROOT)) {
+      if (seen.has(file.relative)) continue;
+      seen.add(file.relative);
+      out.push(file);
+    }
+  }
+  return out;
+}
+
+function readHistory() {
+  try {
+    if (!fs.existsSync(HISTORY_PATH)) return [];
+    const raw = JSON.parse(fs.readFileSync(HISTORY_PATH, "utf8"));
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushHistory(entry) {
+  try {
+    ensureDir(LOG_DIR);
+    const list = readHistory();
+    list.unshift(entry);
+    fs.writeFileSync(
+      HISTORY_PATH,
+      JSON.stringify(list.slice(0, HISTORY_LIMIT), null, 2),
+      "utf8"
+    );
+  } catch (err) {
+    console.warn("Could not write run history:", err.message);
+  }
+}
+
+function safeResolveUnder(baseDir, nameOrRel) {
+  const cleaned = String(nameOrRel || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+  if (!cleaned || cleaned.includes("..")) {
+    const err = new Error("Invalid file path.");
+    err.status = 400;
+    throw err;
+  }
+  const abs = path.resolve(baseDir, cleaned);
+  const base = path.resolve(baseDir);
+  if (abs !== base && !abs.startsWith(base + path.sep)) {
+    const err = new Error("File is outside the allowed folder.");
+    err.status = 400;
+    throw err;
+  }
+  return abs;
+}
+
+function configFromRequest(req, clientFileName) {
+  const jobs = loadJobs(JOBS_PATH);
+  const props = loadProperties(PROPS_PATH);
+  const resolved = resolveJobConfig(clientFileName, jobs, props);
+  const body = req.body || {};
+  const customModule = String(body.moduleCustom || "").trim();
+  return {
+    Module: customModule || String(body.module || "").trim(),
+    Entity: String(body.entity || "").trim(),
+    Versions: String(body.versions || resolved.Versions || "v1.0").trim(),
+    TestcaseType: String(body.testcaseType || resolved.TestcaseType || "WEB").trim(),
+  };
+}
+
+function saveUpload(dir, file) {
+  ensureDir(dir);
+  const dest = path.join(dir, path.basename(file.originalname));
+  fs.writeFileSync(dest, file.buffer);
+  return dest;
+}
+
+function assertExcelUpload(file, label) {
+  if (!file) return;
+  if (!isXlsxFileName(file.originalname)) {
+    const err = new Error(`${label}: ${XLSX_ONLY_MSG}`);
+    err.status = 400;
+    throw err;
+  }
+}
+
+function resolveKenyaRelative(relative) {
+  const abs = safeResolveUnder(ROOT, relative);
+  const allowed = KENYA_DIRS.some(
+    (dir) => abs === dir || abs.startsWith(dir + path.sep)
+  );
+  if (!allowed) {
+    const err = new Error("Kenya file must be inside Kenya doc or Kenya original folder.");
+    err.status = 400;
+    throw err;
+  }
+  return abs;
+}
+
+async function runMapping(req, { generate }) {
+  const clientFile = (req.files && req.files.client && req.files.client[0]) || null;
+  const kenyaFile = (req.files && req.files.kenya && req.files.kenya[0]) || null;
+  const existingClient = String(req.body.existingClient || "").trim();
+  const existingKenya = String(req.body.existingKenya || "").trim();
+
+  let clientFileName;
+  let clientBuffer;
+  if (clientFile) {
+    assertExcelUpload(clientFile, "Client document");
+    clientFileName = clientFile.originalname;
+    clientBuffer = clientFile.buffer;
+    saveUpload(CLIENT_DIR, clientFile);
+  } else if (existingClient) {
+    const abs = safeResolveUnder(CLIENT_DIR, existingClient);
+    clientFileName = path.basename(abs);
+    clientBuffer = fs.readFileSync(abs);
+  } else {
+    const err = new Error("Upload a client document or pick one from Client doc.");
+    err.status = 400;
+    throw err;
+  }
+
+  let kenyaFileName = null;
+  let kenyaBuffer = null;
+  if (kenyaFile) {
+    assertExcelUpload(kenyaFile, "Kenya document");
+    kenyaFileName = kenyaFile.originalname;
+    kenyaBuffer = kenyaFile.buffer;
+    saveUpload(KENYA_DIR, kenyaFile);
+  } else if (existingKenya) {
+    const abs = resolveKenyaRelative(existingKenya);
+    kenyaFileName = path.basename(abs);
+    kenyaBuffer = fs.readFileSync(abs);
+  }
+
+  const config = configFromRequest(req, clientFileName);
+  if (!config.Module) {
+    const err = new Error("Select a Module (or type a custom module).");
+    err.status = 400;
+    throw err;
+  }
+  if (!config.Entity) {
+    const err = new Error("Select an Entity.");
+    err.status = 400;
+    throw err;
+  }
+  if (!ENTITIES.includes(config.Entity)) {
+    const err = new Error(`Entity must be one of: ${ENTITIES.join(", ")}.`);
+    err.status = 400;
+    throw err;
+  }
+
+  const mapped = await mapFromBuffers({
+    clientFileName,
+    clientBuffer,
+    kenyaFileName,
+    kenyaBuffer,
+    config,
+  });
+
+  let outName = "";
+  let logName = "";
+  if (generate) {
+    const stamp = nowStamp();
+    const baseName = safeBaseName(clientFileName);
+    outName = `${baseName}_SimplifyQA_${stamp}.xlsx`;
+    logName = `${baseName}_mapping_${stamp}.log`;
+    ensureDir(OUT_DIR);
+    ensureDir(LOG_DIR);
+    writeWorkbook(mapped.outRows, path.join(OUT_DIR, outName));
+    mapped.summary.outName = outName;
+    mapped.summary.logName = logName;
+    writeLog(path.join(LOG_DIR, logName), mapped.summary);
+    pushHistory({
+      at: new Date().toISOString(),
+      clientFile: clientFileName,
+      kenyaFile: kenyaFileName,
+      outName,
+      logName,
+      tcs: mapped.summary.mappedTcCount,
+      steps: mapped.summary.mappedStepCount,
+      issues: mapped.summary.issues.length,
+      kenyaMatched: mapped.summary.kenyaMatched,
+      pass: mapped.summary.tcMatch && mapped.summary.stepMatch && mapped.summary.seqOk,
+    });
+  }
+
+  return {
+    ok: true,
+    generated: Boolean(generate),
+    kenyaFile: kenyaFileName,
+    summary: mapped.summary,
+    preview: mapped.preview,
+    download: generate
+      ? {
+          excel: `/api/download/excel?file=${encodeURIComponent(outName)}`,
+          log: `/api/download/log?file=${encodeURIComponent(logName)}`,
+        }
+      : null,
+  };
+}
+
+app.get("/api/health", (_req, res) => {
+  res.json({
+    ok: true,
+    app: "icea-lion-testcase-review",
+    port: PORT,
+    pid: process.pid,
+    routes: listedApiRoutes(),
+  });
+});
+
+app.get("/api/config", (_req, res) => {
+  const props = loadProperties(PROPS_PATH);
+  const jobs = loadJobs(JOBS_PATH);
+  res.json({
+    ok: true,
+    props,
+    jobs,
+    clientFiles: listClientFiles(),
+    kenyaFiles: listKenyaFiles(),
+    xlsxOnly: true,
+    xlsxMessage: XLSX_ONLY_MSG,
+    modules: MODULES,
+    entities: ENTITIES,
+  });
+});
+
+app.get("/api/properties", (_req, res) => {
+  const text = fs.existsSync(PROPS_PATH) ? fs.readFileSync(PROPS_PATH, "utf8") : "";
+  res.json({ ok: true, text, props: loadProperties(PROPS_PATH) });
+});
+
+app.post("/api/properties", (req, res) => {
+  try {
+    const text = String((req.body && req.body.text) || "");
+    fs.writeFileSync(PROPS_PATH, text, "utf8");
+    res.json({ ok: true, props: loadProperties(PROPS_PATH) });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.get("/api/history", (_req, res) => {
+  res.json({ ok: true, runs: readHistory() });
+});
+
+app.post("/api/upload-kenya", withMulter(upload.single("kenya")), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, message: "Choose a Kenya Excel file to upload." });
+    }
+    assertExcelUpload(req.file, "Kenya document");
+    const dest = saveUpload(KENYA_DIR, req.file);
+    const relative = path.relative(ROOT, dest).split(path.sep).join("/");
+    res.json({
+      ok: true,
+      savedAs: path.basename(dest),
+      relative,
+      folder: "Kenya doc",
+      kenyaFiles: listKenyaFiles(),
+      message: `Saved to Kenya doc/${path.basename(dest)}`,
+    });
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.post("/api/upload-client", withMulter(upload.single("client")), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, message: "Choose a client Excel file to upload." });
+    }
+    assertExcelUpload(req.file, "Client document");
+    const dest = saveUpload(CLIENT_DIR, req.file);
+    const relative = path.relative(CLIENT_DIR, dest).split(path.sep).join("/");
+    res.json({
+      ok: true,
+      savedAs: path.basename(dest),
+      relative,
+      folder: "Client doc",
+      clientFiles: listClientFiles(),
+      message: `Saved to Client doc/${path.basename(dest)}`,
+    });
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.post(
+  "/api/review",
+  withMulter(
+    upload.fields([
+      { name: "client", maxCount: 1 },
+      { name: "kenya", maxCount: 1 },
+    ])
+  ),
+  async (req, res) => {
+    try {
+      const result = await runMapping(req, { generate: false });
+      res.json(result);
+    } catch (err) {
+      res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  "/api/generate",
+  withMulter(
+    upload.fields([
+      { name: "client", maxCount: 1 },
+      { name: "kenya", maxCount: 1 },
+    ])
+  ),
+  async (req, res) => {
+    try {
+      const result = await runMapping(req, { generate: true });
+      res.json(result);
+    } catch (err) {
+      res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+    }
+  }
+);
+
+function resolveCompareSide(req, side) {
+  const uploadKey = side === "A" ? "clientA" : "clientB";
+  const existingKey = side === "A" ? "existingClientA" : "existingClientB";
+  const uploaded = (req.files && req.files[uploadKey] && req.files[uploadKey][0]) || null;
+  const existing = String((req.body && req.body[existingKey]) || "").trim();
+  const label = side === "A" ? "Client A" : "Client B";
+
+  if (uploaded) {
+    assertExcelUpload(uploaded, label);
+    saveUpload(CLIENT_DIR, uploaded);
+    return { fileName: uploaded.originalname, buffer: uploaded.buffer };
+  }
+  if (existing) {
+    const abs = safeResolveUnder(CLIENT_DIR, existing);
+    return { fileName: path.basename(abs), buffer: fs.readFileSync(abs) };
+  }
+  const err = new Error(`Choose ${label} (.xlsx) or pick an existing Client doc.`);
+  err.status = 400;
+  throw err;
+}
+
+function parseEntityField(raw, label) {
+  const parts = Array.isArray(raw)
+    ? raw
+    : String(raw || "")
+        .split(/[,;]/);
+  const list = [...new Set(parts.map((v) => String(v || "").trim()).filter(Boolean))];
+  if (!list.length) {
+    const err = new Error(`Select at least one Entity for ${label}.`);
+    err.status = 400;
+    throw err;
+  }
+  const invalid = list.filter((e) => !ENTITIES.includes(e));
+  if (invalid.length) {
+    const err = new Error(
+      `Invalid Entity for ${label}: ${invalid.join(", ")}. Must be one of: ${ENTITIES.join(", ")}.`
+    );
+    err.status = 400;
+    throw err;
+  }
+  return list.join(", ");
+}
+
+async function runCompare(req, { generate }) {
+  const sideA = resolveCompareSide(req, "A");
+  const sideB = resolveCompareSide(req, "B");
+  const kenyaFile = (req.files && req.files.kenya && req.files.kenya[0]) || null;
+  const existingKenya = String((req.body && req.body.existingKenya) || "").trim();
+  const body = req.body || {};
+  const customModule = String(body.moduleCustom || "").trim();
+  const moduleName = customModule || String(body.module || "").trim();
+  const fallbackEntity = String(body.entity || "").trim();
+  const entityCommon = parseEntityField(
+    body.entityCommon || fallbackEntity,
+    "Common sheet"
+  );
+  const entityUniqueA = parseEntityField(
+    body.entityUniqueA || fallbackEntity,
+    "unique Client A sheet"
+  );
+  const entityUniqueB = parseEntityField(
+    body.entityUniqueB || fallbackEntity,
+    "unique Client B sheet"
+  );
+  const versions = String(body.versions || "v1.0").trim() || "v1.0";
+  const testcaseType = String(body.testcaseType || "WEB").trim() || "WEB";
+
+  if (!moduleName) {
+    const err = new Error("Select a Module (or type a custom module).");
+    err.status = 400;
+    throw err;
+  }
+
+  let kenyaFileName = null;
+  let kenyaBuffer = null;
+  if (kenyaFile) {
+    assertExcelUpload(kenyaFile, "Kenya document");
+    kenyaFileName = kenyaFile.originalname;
+    kenyaBuffer = kenyaFile.buffer;
+    saveUpload(KENYA_DIR, kenyaFile);
+  } else if (existingKenya) {
+    const abs = resolveKenyaRelative(existingKenya);
+    kenyaFileName = path.basename(abs);
+    kenyaBuffer = fs.readFileSync(abs);
+  }
+
+  const compared = await compareClientDocs({
+    fileAName: sideA.fileName,
+    bufferA: sideA.buffer,
+    fileBName: sideB.fileName,
+    bufferB: sideB.buffer,
+    moduleName,
+    entityCommon,
+    entityUniqueA,
+    entityUniqueB,
+    versions,
+    testcaseType,
+    kenyaFileName,
+    kenyaBuffer,
+  });
+
+  let outName = "";
+  let logName = "";
+  if (generate) {
+      const stamp = nowStamp();
+    outName = `${safeBaseName(sideA.fileName)}_vs_${safeBaseName(sideB.fileName)}_Compare_${stamp}.xlsx`;
+    logName = `${safeBaseName(sideA.fileName)}_vs_${safeBaseName(sideB.fileName)}_compare_${stamp}.log`;
+    ensureDir(OUT_DIR);
+    ensureDir(LOG_DIR);
+    fs.writeFileSync(path.join(OUT_DIR, outName), compared.buffer);
+    compared.summary.outName = outName;
+    compared.summary.logName = logName;
+    writeCompareLog(path.join(LOG_DIR, logName), compared.summary);
+    pushHistory({
+      at: new Date().toISOString(),
+      clientFile: `${sideA.fileName} vs ${sideB.fileName}`,
+      kenyaFile: kenyaFileName,
+      outName,
+      logName,
+      tcs: compared.summary.mappedTcCount,
+      steps: compared.summary.mappedStepCount,
+      issues: (compared.summary.issues || []).length,
+      kenyaMatched: compared.summary.kenyaMatched,
+      pass: compared.summary.seqOk && compared.summary.tcMatch && compared.summary.stepMatch,
+      kind: "compare",
+    });
+  }
+
+  return {
+    ok: true,
+    generated: Boolean(generate),
+    kenyaFile: kenyaFileName,
+    summary: compared.summary,
+    preview: compared.preview,
+    download: generate
+      ? {
+          excel: `/api/download/excel?file=${encodeURIComponent(outName)}`,
+          log: `/api/download/log?file=${encodeURIComponent(logName)}`,
+        }
+      : null,
+  };
+}
+
+function compareUpload() {
+  return withMulter(
+    upload.fields([
+      { name: "clientA", maxCount: 1 },
+      { name: "clientB", maxCount: 1 },
+      { name: "kenya", maxCount: 1 },
+    ])
+  );
+}
+
+app.post("/api/compare-review", compareUpload(), async (req, res) => {
+  try {
+    const result = await runCompare(req, { generate: false });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.post("/api/compare", compareUpload(), async (req, res) => {
+  try {
+    const result = await runCompare(req, { generate: true });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.get("/api/download/excel", (req, res) => {
+  try {
+    const abs = safeResolveUnder(OUT_DIR, req.query.file);
+    if (!fs.existsSync(abs)) {
+      return res.status(404).json({ ok: false, message: "Excel not found." });
+    }
+    res.download(abs, path.basename(abs));
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.get("/api/download/log", (req, res) => {
+  try {
+    const abs = safeResolveUnder(LOG_DIR, req.query.file);
+    if (!fs.existsSync(abs)) {
+      return res.status(404).json({ ok: false, message: "Log not found." });
+    }
+    res.download(abs, path.basename(abs));
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.get("/api/preview/output", (req, res) => {
+  try {
+    const abs = safeResolveUnder(OUT_DIR, req.query.file);
+    if (!fs.existsSync(abs)) {
+      return res.status(404).json({ ok: false, message: "File not found." });
+    }
+    const wb = XLSX.readFile(abs);
+    const sheet = String(req.query.sheet || wb.SheetNames[0]);
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "" });
+    const maxCol = rows.reduce((m, r) => Math.max(m, r.length), 0);
+    res.json({
+      ok: true,
+      sheet,
+      sheets: wb.SheetNames,
+      maxCol,
+      rows: rows.slice(0, 120).map((cells, i) => ({
+        row: i + 1,
+        cells: Array.from({ length: maxCol }, (_, c) => ({
+          text: String(cells[c] == null ? "" : cells[c]),
+        })),
+      })),
+      truncated: rows.length > 120,
+      totalRows: rows.length,
+    });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.post("/api/launch-excel", (req, res) => {
+  try {
+    const abs = safeResolveUnder(OUT_DIR, req.body && req.body.file);
+    if (!fs.existsSync(abs)) {
+      return res.status(404).json({ ok: false, message: "Excel not found." });
+    }
+    const { execFile } = require("child_process");
+    execFile("cmd.exe", ["/c", "start", "", abs], { windowsHide: false }, (err) => {
+      if (err) {
+        return res.status(500).json({ ok: false, message: err.message });
+      }
+      res.json({ ok: true, launched: true, message: "Opened in Excel." });
+    });
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+function lanAddresses() {
+  try {
+    const nets = os.networkInterfaces();
+    const result = [];
+    for (const entries of Object.values(nets || {})) {
+      for (const net of entries || []) {
+        const family = net.family;
+        if ((family === "IPv4" || family === 4) && !net.internal && net.address) {
+          result.push(net.address);
+        }
+      }
+    }
+    return result;
+  } catch (err) {
+    console.warn("Could not list LAN addresses:", err.message);
+    return [];
+  }
+}
+
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    ok: false,
+    message: `Unknown API route ${req.method} ${req.originalUrl}. Start the app with npm start and open http://localhost:${PORT}.`,
+  });
+});
+
+app.use(express.static(path.join(ROOT, "public")));
+if (fs.existsSync(path.join(ROOT, "Logo"))) {
+  app.use("/logo", express.static(path.join(ROOT, "Logo")));
+}
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const api = req.path && req.path.startsWith("/api");
+  const message = err.message || String(err);
+  if (api) {
+    return res.status(err.status || 500).json({ ok: false, message });
+  }
+  res.status(err.status || 500).type("text/plain").send(message);
+});
+
+ensureDir(CLIENT_DIR);
+ensureDir(KENYA_DIR);
+ensureDir(KENYA_ORIGINAL_DIR);
+ensureDir(OUT_DIR);
+ensureDir(LOG_DIR);
+
+function listedApiRoutes() {
+  try {
+    const stack = app.router && app.router.stack;
+    if (!Array.isArray(stack)) return [];
+    const out = [];
+    for (const layer of stack) {
+      if (!layer.route || !layer.route.path) continue;
+      const methods = Object.keys(layer.route.methods || {}).filter((m) => layer.route.methods[m]);
+      if (!methods.length) continue;
+      out.push(`${methods.map((m) => m.toUpperCase()).join(",")} ${layer.route.path}`);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function portListeners(port) {
+  try {
+    return execSync(`netstat -ano | findstr :${port}`, { encoding: "utf8" }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function startServer(port = PORT) {
+  const server = http.createServer(app);
+  server.on("error", (err) => {
+    if (err && err.code === "EADDRINUSE") {
+      console.error(`ERROR: Port ${port} is already in use. This process did NOT start.`);
+      console.error("Close the other Node/Live Preview window, then run npm start again.");
+      const listeners = portListeners(port);
+      if (listeners) {
+        console.error("What is using the port:");
+        console.error(listeners);
+      }
+    } else {
+      console.error("Server error:", err);
+    }
+    process.exit(1);
+  });
+  server.on("close", () => {
+    console.warn("HTTP server closed.");
+  });
+  server.listen(port, "0.0.0.0", () => {
+    const addr = server.address();
+    const bound = addr && typeof addr === "object" ? addr.port : port;
+    console.log(`pid ${process.pid}`);
+    console.log(`ICEA LION Testcase Review UI  http://localhost:${bound}`);
+    for (const ip of lanAddresses()) {
+      console.log(`  LAN  http://${ip}:${bound}`);
+    }
+    const routes = listedApiRoutes().filter((r) => r.includes("/api/"));
+    console.log("API routes:");
+    for (const route of routes) {
+      console.log(`  ${route}`);
+    }
+    if (!routes.some((r) => r.includes("/api/compare"))) {
+      console.error("ERROR: POST /api/compare was not registered.");
+    }
+    console.log("Keep this window open. Press Ctrl+C to stop.");
+  });
+  return server;
+}
+
+if (require.main === module) {
+  process.on("uncaughtException", (err) => {
+    console.error("uncaughtException:", err);
+  });
+  process.on("unhandledRejection", (err) => {
+    console.error("unhandledRejection:", err);
+  });
+  if (process.stdin && typeof process.stdin.resume === "function") {
+    try {
+      process.stdin.resume();
+    } catch {
+      // ignore
+    }
+  }
+  const server = startServer(PORT);
+  const stop = () => {
+    server.close(() => process.exit(0));
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+}
+
+module.exports = { app, startServer, PORT, CLIENT_DIR, KENYA_DIR, ROOT };

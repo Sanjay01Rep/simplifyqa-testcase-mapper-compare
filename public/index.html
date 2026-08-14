@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ICEA LION Testcase Review</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">IL</div>
+          <div class="brand-text">
+            <h1>ICEA LION Testcase Review</h1>
+            <p>Review client cases, map Kenya pre-requisites, export SimplifyQA Excel</p>
+          </div>
+        </div>
+        <div class="brand-right">
+          <span class="simplify-label">Simplify3x</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="page">
+      <nav class="module-nav" role="tablist" aria-label="Modules">
+        <button type="button" class="module-tab active" id="tabMap" data-view="map" role="tab" aria-selected="true">
+          Map to SimplifyQA
+        </button>
+        <button type="button" class="module-tab" id="tabCompare" data-view="compare" role="tab" aria-selected="false">
+          Compare clients
+        </button>
+      </nav>
+
+      <div id="validateBanner" class="validate-banner hidden" role="alert"></div>
+
+      <main class="layout">
+        <div class="form-col">
+        <div id="viewMap">
+        <section class="panel" aria-labelledby="run-heading">
+          <div class="panel-head">
+            <h2 id="run-heading">Map to SimplifyQA</h2>
+            <button type="button" class="btn ghost" id="reloadFormBtn">
+              Load from properties
+            </button>
+          </div>
+
+          <form id="runForm" class="form">
+            <div id="uploadNotice" class="validate-banner hidden" role="alert"></div>
+            <div id="serverBanner" class="validate-banner hidden" role="status"></div>
+
+            <div class="grid-2">
+              <div class="field">
+                <span>Client document *</span>
+                <div class="dropzone" id="clientDrop" data-label="Client document">
+                  <p class="drop-hint">Drop .xlsx here or browse</p>
+                  <input id="clientFile" name="client" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                </div>
+                <select id="existingClient">
+                  <option value="">Or pick existing Client doc</option>
+                </select>
+              </div>
+              <div class="field">
+                <span>Kenya original</span>
+                <div class="dropzone" id="kenyaDrop" data-label="Kenya document">
+                  <p class="drop-hint">Drop .xlsx here or browse</p>
+                  <input id="kenyaFile" name="kenya" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                </div>
+                <select id="existingKenya">
+                  <option value="">Or pick existing Kenya original</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <label class="field">
+                <span>Module *</span>
+                <select id="module" name="module" required>
+                  <option value="">-- Select module --</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Entity *</span>
+                <select id="entity" name="entity" required>
+                  <option value="">-- Select entity --</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid-3">
+              <label class="field">
+                <span>Custom module</span>
+                <input id="moduleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Versions *</span>
+                <input id="versions" name="versions" type="text" value="v1.0" />
+              </label>
+              <label class="field">
+                <span>Testcase Type *</span>
+                <input id="testcaseType" name="testcaseType" type="text" value="WEB" />
+              </label>
+            </div>
+
+            <div class="actions sticky-actions">
+              <button type="button" class="btn secondary" id="reviewBtn">Review only</button>
+              <button type="button" class="btn primary" id="runBtn">Generate Excel</button>
+              <p class="status" id="runStatus" aria-live="polite"></p>
+            </div>
+
+            <ol class="progress-steps" id="progressSteps" hidden>
+              <li data-step="upload">Upload</li>
+              <li data-step="review">Review</li>
+              <li data-step="prereq">Pre-reqs</li>
+              <li data-step="generate">Generate</li>
+              <li data-step="done">Done</li>
+            </ol>
+          </form>
+
+          <div class="stats-row hidden" id="statsRow"></div>
+
+          <div class="result hidden" id="resultBox">
+            <h3>Result</h3>
+            <p id="resultMessage"></p>
+            <div class="result-links" id="resultLinks"></div>
+            <details id="logDetails">
+              <summary>Issue log</summary>
+              <pre id="logOutput"></pre>
+            </details>
+          </div>
+        </section>
+        </div>
+
+        <div id="viewCompare" class="hidden">
+        <section class="panel" aria-labelledby="compare-heading">
+            <div class="panel-head">
+              <h2 id="compare-heading">Compare clients</h2>
+              <div class="btn-row">
+                <button type="button" class="btn ghost" id="cmpReloadFormBtn">
+                  Load from properties
+                </button>
+                <button type="button" class="btn secondary" id="cmpSaveMapBtn">
+                  Save mapping
+                </button>
+              </div>
+            </div>
+            <p class="hint compare-hint">
+              Match by Name + TC ID when both have IDs; otherwise by Name.
+              Same name but different steps → unmatched on both unique sheets.
+              Kenya original maps Pre-Requisites by exact testcase name onto Common and unique sheets.
+              Map a different Entity (or several) per output sheet; Save mapping stores it in mapping.properties.
+            </p>
+
+            <form id="compareForm" class="form">
+              <div id="cmpNotice" class="validate-banner hidden" role="alert"></div>
+
+              <div class="grid-2">
+                <div class="field">
+                  <span>Client A *</span>
+                  <div class="dropzone" id="cmpDropA" data-label="Client A">
+                    <p class="drop-hint">Drop .xlsx here or browse</p>
+                    <input id="cmpFileA" name="clientA" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                  </div>
+                  <select id="cmpExistingA">
+                    <option value="">Or pick existing Client doc</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <span>Client B *</span>
+                  <div class="dropzone" id="cmpDropB" data-label="Client B">
+                    <p class="drop-hint">Drop .xlsx here or browse</p>
+                    <input id="cmpFileB" name="clientB" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                  </div>
+                  <select id="cmpExistingB">
+                    <option value="">Or pick existing Client doc</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field">
+                <span>Kenya original (3rd input)</span>
+                <div class="dropzone" id="cmpKenyaDrop" data-label="Kenya document">
+                  <p class="drop-hint">Drop .xlsx here or browse</p>
+                  <input id="cmpKenyaFile" name="kenya" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                </div>
+                <select id="cmpExistingKenya">
+                  <option value="">Or pick existing Kenya original</option>
+                </select>
+              </div>
+
+              <div class="grid-2">
+                <label class="field">
+                  <span>Module *</span>
+                  <select id="cmpModule" name="module">
+                    <option value="">-- Select module --</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Custom module</span>
+                  <input id="cmpModuleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
+                </label>
+              </div>
+
+              <div class="entity-map">
+                <p class="entity-map-title">Entity mapping per output sheet *</p>
+                <div class="grid-3">
+                  <div class="field">
+                    <span>Common sheet (multi-select)</span>
+                    <div class="check-list" id="cmpEntityCommon" data-entity-group="common"></div>
+                  </div>
+                  <div class="field">
+                    <span>Unique Client A sheet</span>
+                    <div class="check-list" id="cmpEntityUniqueA" data-entity-group="uniqueA"></div>
+                  </div>
+                  <div class="field">
+                    <span>Unique Client B sheet</span>
+                    <div class="check-list" id="cmpEntityUniqueB" data-entity-group="uniqueB"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <label class="field">
+                  <span>Versions *</span>
+                  <input id="cmpVersions" name="versions" type="text" value="v1.0" />
+                </label>
+                <label class="field">
+                  <span>Testcase Type *</span>
+                  <input id="cmpType" name="testcaseType" type="text" value="WEB" />
+                </label>
+              </div>
+
+              <div class="actions sticky-actions">
+                <button type="button" class="btn secondary" id="cmpReviewBtn">Review only</button>
+                <button type="button" class="btn primary" id="cmpBtn">Generate Excel</button>
+                <p class="status" id="cmpStatus" aria-live="polite"></p>
+              </div>
+
+              <ol class="progress-steps" id="cmpProgressSteps" hidden>
+                <li data-step="upload">Upload</li>
+                <li data-step="review">Review</li>
+                <li data-step="prereq">Pre-reqs</li>
+                <li data-step="generate">Generate</li>
+                <li data-step="done">Done</li>
+              </ol>
+            </form>
+
+            <div class="stats-row hidden" id="cmpStats"></div>
+
+            <div class="result hidden" id="cmpResult">
+              <h3>Result</h3>
+              <p id="cmpResultMessage"></p>
+              <div class="result-links" id="cmpResultLinks"></div>
+              <details id="cmpLogDetails">
+                <summary>Issue log</summary>
+                <pre id="cmpLogOutput"></pre>
+              </details>
+            </div>
+        </section>
+        </div>
+        </div>
+
+        <aside class="side-stack">
+          <section class="panel" aria-labelledby="issues-heading">
+            <div class="panel-head">
+              <h2 id="issues-heading">Validation</h2>
+              <div class="chip-row" id="issueChips"></div>
+            </div>
+            <ul class="issue-list" id="issueList">
+              <li class="muted">Review a client file to see sequencing, missing steps, expected results, and pre-req matches.</li>
+            </ul>
+          </section>
+
+          <section class="panel" aria-labelledby="history-heading">
+            <div class="panel-head">
+              <h2 id="history-heading">Recent runs</h2>
+              <button type="button" class="btn ghost" id="reloadHistoryBtn">Refresh</button>
+            </div>
+            <ul class="history-list" id="historyList">
+              <li class="muted">No runs yet.</li>
+            </ul>
+          </section>
+
+          <section class="panel" aria-labelledby="props-heading">
+            <details id="propsDetails">
+              <summary class="props-summary">
+                <h2 id="props-heading">Properties</h2>
+                <span class="muted props-toggle">Show</span>
+              </summary>
+              <div class="panel-head props-actions">
+                <div class="btn-row">
+                  <button type="button" class="btn ghost" id="reloadPropsBtn">Reload</button>
+                  <button type="button" class="btn secondary" id="savePropsBtn">Save</button>
+                </div>
+              </div>
+              <textarea
+                id="propertiesText"
+                spellcheck="false"
+                aria-label="mapping.properties contents"
+              ></textarea>
+              <p class="status" id="propsStatus" aria-live="polite"></p>
+            </details>
+          </section>
+        </aside>
+      </main>
+
+      <section class="panel preview-panel hidden" id="previewPanel" aria-labelledby="preview-heading">
+        <div class="panel-head">
+          <h2 id="preview-heading">SimplifyQA preview</h2>
+          <p class="hint" id="previewMeta"></p>
+        </div>
+        <div class="preview-scroll">
+          <table class="preview-table" id="previewTable">
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel preview-panel hidden" id="cmpPreviewPanel" aria-labelledby="cmp-preview-heading">
+        <div class="panel-head">
+          <h2 id="cmp-preview-heading">Common sheet preview</h2>
+          <p class="hint" id="cmpPreviewMeta"></p>
+        </div>
+        <div class="preview-scroll">
+          <table class="preview-table" id="cmpPreviewTable">
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p class="footer-note">
+          Local tool · last step Mandate Screenshot = Yes · Kenya pre-requisites mapped by exact testcase name
+        </p>
+      </footer>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>
