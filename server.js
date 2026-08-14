@@ -21,8 +21,15 @@ const {
 } = require("./lib/mapper");
 const { ENTITIES, MODULES } = require("./lib/options");
 const { compareClientDocs, writeCompareLog } = require("./lib/compare");
+const { loadProjectEnv } = require("./lib/loadEnv");
 
 const ROOT = __dirname;
+loadProjectEnv(ROOT);
+
+const PKG = require("./package.json");
+const APP_VERSION = String(PKG.version || "0.0.0");
+const APP_NAME = String(PKG.name || "simplifyqa-testcase-mapper-compare");
+
 const CLIENT_DIR = path.join(ROOT, "Client doc");
 const KENYA_DIR = path.join(ROOT, "Kenya doc");
 const KENYA_ORIGINAL_DIR = path.join(ROOT, "Kenya orginial testcase");
@@ -31,9 +38,19 @@ const XLSX_ONLY_MSG = "Only .xlsx files are supported. Please choose a .xlsx wor
 const OUT_DIR = path.join(ROOT, "Generated Excel file");
 const LOG_DIR = path.join(OUT_DIR, "logs");
 const PROPS_PATH = path.join(ROOT, "mapping.properties");
+const PROPS_EXAMPLE_PATH = path.join(ROOT, "mapping.properties.example");
 const JOBS_PATH = path.join(ROOT, "jobs.json");
 const HISTORY_PATH = path.join(LOG_DIR, "run-history.json");
 const PORT = Number(process.env.PORT || 3100);
+
+/** First clone: create mapping.properties from the committed example (never overwrites). */
+function ensureMappingProperties() {
+  if (fs.existsSync(PROPS_PATH)) return;
+  if (!fs.existsSync(PROPS_EXAMPLE_PATH)) return;
+  fs.copyFileSync(PROPS_EXAMPLE_PATH, PROPS_PATH);
+  console.log(`Created mapping.properties from mapping.properties.example`);
+}
+ensureMappingProperties();
 const HISTORY_LIMIT = 20;
 
 const app = express();
@@ -308,7 +325,8 @@ async function runMapping(req, { generate }) {
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
-    app: "icea-lion-testcase-review",
+    app: APP_NAME,
+    version: APP_VERSION,
     port: PORT,
     pid: process.pid,
     routes: listedApiRoutes(),
@@ -320,6 +338,8 @@ app.get("/api/config", (_req, res) => {
   const jobs = loadJobs(JOBS_PATH);
   res.json({
     ok: true,
+    app: APP_NAME,
+    version: APP_VERSION,
     props,
     jobs,
     clientFiles: listClientFiles(),
@@ -765,7 +785,7 @@ function startServer(port = PORT) {
     const addr = server.address();
     const bound = addr && typeof addr === "object" ? addr.port : port;
     console.log(`pid ${process.pid}`);
-    console.log(`ICEA LION Testcase Review UI  http://localhost:${bound}`);
+    console.log(`ICEA LION Testcase Review UI  v${APP_VERSION}  http://localhost:${bound}`);
     for (const ip of lanAddresses()) {
       console.log(`  LAN  http://${ip}:${bound}`);
     }

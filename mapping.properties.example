@@ -1,0 +1,20 @@
+# SimplifyQA Testcase Mapping Configuration
+# Copy this file to mapping.properties and edit for your run:
+#   copy mapping.properties.example mapping.properties   (Windows cmd)
+#   cp mapping.properties.example mapping.properties     (Git Bash / macOS / Linux)
+#
+# mapping.properties is gitignored so local Module/Entity choices stay off GitHub.
+
+Module=Investment Management
+Entity=Life UG
+Versions=v1.0
+TestcaseType=WEB
+
+# Compare clients (per-sheet Entity mapping)
+CompareModule=Accounts Payable
+CompareEntityCommon=Life UG, Gen UG
+CompareEntityUniqueA=Gen UG
+CompareEntityUniqueB=Life UG
+CompareKenya=
+
+CompareModuleCustom=

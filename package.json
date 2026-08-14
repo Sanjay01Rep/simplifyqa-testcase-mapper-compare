@@ -1,8 +1,12 @@
 {
-  "name": "icea-lion-testcase-review",
+  "name": "simplifyqa-testcase-mapper-compare",
   "version": "1.0.0",
-  "description": "Review client testcases, map Kenya pre-requisites, export SimplifyQA Excel",
+  "description": "ICEA LION QA tool: map client testcases to SimplifyQA Excel and compare Gen UG vs Life UG workbooks",
   "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sanjay01Rep/simplifyqa-testcase-mapper-compare.git"
+  },
   "scripts": {
     "prestart": "node scripts/free-port.js",
     "start": "node server.js",
@@ -15,7 +19,10 @@
   "keywords": [
     "simplifyqa",
     "testcase",
-    "icea-lion"
+    "mapper",
+    "compare",
+    "icea-lion",
+    "qa"
   ],
   "author": "Simplify3x",
   "license": "ISC",

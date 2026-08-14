@@ -422,6 +422,10 @@ async function loadConfig() {
   const data = await apiFetch("/api/config");
   if (!data.ok) return;
   showServerBanner(true, "");
+  const versionEl = document.getElementById("appVersion");
+  if (versionEl && data.version) {
+    versionEl.textContent = `v${String(data.version).replace(/^v/i, "")}`;
+  }
   fillSelect(existingClientEl, data.clientFiles, "Or pick an existing Client doc");
   fillSelect(existingKenyaEl, data.kenyaFiles, "Or pick an existing Kenya original");
   fillChoices(moduleEl, data.modules || FALLBACK_MODULES, "-- Select module --");

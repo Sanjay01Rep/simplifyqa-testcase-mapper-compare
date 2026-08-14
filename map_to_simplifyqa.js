@@ -30,6 +30,12 @@ const OUT_DIR = path.join(base, "Generated Excel file");
 const LOG_DIR = path.join(OUT_DIR, "logs");
 const JOBS_PATH = path.join(base, "jobs.json");
 const PROPS_PATH = path.join(base, "mapping.properties");
+const PROPS_EXAMPLE_PATH = path.join(base, "mapping.properties.example");
+
+if (!fs.existsSync(PROPS_PATH) && fs.existsSync(PROPS_EXAMPLE_PATH)) {
+  fs.copyFileSync(PROPS_EXAMPLE_PATH, PROPS_PATH);
+  console.log("Created mapping.properties from mapping.properties.example");
+}
 
 function listClientFiles() {
   if (!fs.existsSync(CLIENT_DIR)) return [];

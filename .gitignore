@@ -6,6 +6,9 @@ node_modules/
 .env.*
 !.env.example
 
+# Local run config (committed template: mapping.properties.example)
+mapping.properties
+
 # Local / generated outputs
 Generated Excel file/
 Client doc/
@@ -14,6 +17,7 @@ Kenya orginial testcase/
 
 # Logs & OS junk
 *.log
+Log
 .DS_Store
 Thumbs.db
 desktop.ini
