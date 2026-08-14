@@ -18,6 +18,7 @@ const {
   writeWorkbook,
   writeLog,
   isXlsxFileName,
+  listMapperHeaders,
 } = require("./lib/mapper");
 const { ENTITIES, MODULES } = require("./lib/options");
 const { compareClientDocs, writeCompareLog } = require("./lib/compare");
@@ -182,9 +183,15 @@ function configFromRequest(req, clientFileName) {
   const resolved = resolveJobConfig(clientFileName, jobs, props);
   const body = req.body || {};
   const customModule = String(body.moduleCustom || "").trim();
+  const entityParts = Array.isArray(body.entity)
+    ? body.entity
+    : String(body.entity || "").split(/[,;]/);
+  const entityList = [
+    ...new Set(entityParts.map((v) => String(v || "").trim()).filter(Boolean)),
+  ];
   return {
     Module: customModule || String(body.module || "").trim(),
-    Entity: String(body.entity || "").trim(),
+    Entity: entityList.join(", "),
     Versions: String(body.versions || resolved.Versions || "v1.0").trim(),
     TestcaseType: String(body.testcaseType || resolved.TestcaseType || "WEB").trim(),
   };
@@ -212,7 +219,7 @@ function resolveKenyaRelative(relative) {
     (dir) => abs === dir || abs.startsWith(dir + path.sep)
   );
   if (!allowed) {
-    const err = new Error("Kenya file must be inside Kenya doc or Kenya original folder.");
+    const err = new Error("Mapper file must be inside Kenya doc or Kenya original folder.");
     err.status = 400;
     throw err;
   }
@@ -245,7 +252,7 @@ async function runMapping(req, { generate }) {
   let kenyaFileName = null;
   let kenyaBuffer = null;
   if (kenyaFile) {
-    assertExcelUpload(kenyaFile, "Kenya document");
+    assertExcelUpload(kenyaFile, "Mapper file");
     kenyaFileName = kenyaFile.originalname;
     kenyaBuffer = kenyaFile.buffer;
     saveUpload(KENYA_DIR, kenyaFile);
@@ -255,6 +262,8 @@ async function runMapping(req, { generate }) {
     kenyaBuffer = fs.readFileSync(abs);
   }
 
+  const mapperHeader = String((req.body && req.body.mapperHeader) || "").trim();
+
   const config = configFromRequest(req, clientFileName);
   if (!config.Module) {
     const err = new Error("Select a Module (or type a custom module).");
@@ -262,14 +271,20 @@ async function runMapping(req, { generate }) {
     throw err;
   }
   if (!config.Entity) {
-    const err = new Error("Select an Entity.");
+    const err = new Error("Select at least one Entity (Life UG, Gen UG, or Gen TZ).");
     err.status = 400;
     throw err;
   }
-  if (!ENTITIES.includes(config.Entity)) {
-    const err = new Error(`Entity must be one of: ${ENTITIES.join(", ")}.`);
-    err.status = 400;
-    throw err;
+  {
+    const entityList = config.Entity.split(",").map((v) => v.trim()).filter(Boolean);
+    const invalid = entityList.filter((e) => !ENTITIES.includes(e));
+    if (invalid.length) {
+      const err = new Error(
+        `Invalid Entity: ${invalid.join(", ")}. Must be one of: ${ENTITIES.join(", ")}.`
+      );
+      err.status = 400;
+      throw err;
+    }
   }
 
   const mapped = await mapFromBuffers({
@@ -278,6 +293,7 @@ async function runMapping(req, { generate }) {
     kenyaFileName,
     kenyaBuffer,
     config,
+    mapperHeader,
   });
 
   let outName = "";
@@ -453,7 +469,7 @@ function resolveCompareSide(req, side) {
   const existingKey = side === "A" ? "existingClientA" : "existingClientB";
   const uploaded = (req.files && req.files[uploadKey] && req.files[uploadKey][0]) || null;
   const existing = String((req.body && req.body[existingKey]) || "").trim();
-  const label = side === "A" ? "Client A" : "Client B";
+  const label = side === "A" ? "Excel A" : "Excel B";
 
   if (uploaded) {
     assertExcelUpload(uploaded, label);
@@ -506,11 +522,11 @@ async function runCompare(req, { generate }) {
   );
   const entityUniqueA = parseEntityField(
     body.entityUniqueA || fallbackEntity,
-    "unique Client A sheet"
+    "unique Excel A sheet"
   );
   const entityUniqueB = parseEntityField(
     body.entityUniqueB || fallbackEntity,
-    "unique Client B sheet"
+    "unique Excel B sheet"
   );
   const versions = String(body.versions || "v1.0").trim() || "v1.0";
   const testcaseType = String(body.testcaseType || "WEB").trim() || "WEB";
@@ -524,7 +540,7 @@ async function runCompare(req, { generate }) {
   let kenyaFileName = null;
   let kenyaBuffer = null;
   if (kenyaFile) {
-    assertExcelUpload(kenyaFile, "Kenya document");
+    assertExcelUpload(kenyaFile, "Mapper file");
     kenyaFileName = kenyaFile.originalname;
     kenyaBuffer = kenyaFile.buffer;
     saveUpload(KENYA_DIR, kenyaFile);
@@ -533,6 +549,8 @@ async function runCompare(req, { generate }) {
     kenyaFileName = path.basename(abs);
     kenyaBuffer = fs.readFileSync(abs);
   }
+
+  const mapperHeader = String((body.mapperHeader) || "").trim();
 
   const compared = await compareClientDocs({
     fileAName: sideA.fileName,
@@ -547,6 +565,7 @@ async function runCompare(req, { generate }) {
     testcaseType,
     kenyaFileName,
     kenyaBuffer,
+    mapperHeader,
   });
 
   let outName = "";
@@ -618,6 +637,39 @@ app.post("/api/compare", compareUpload(), async (req, res) => {
     res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
   }
 });
+
+app.post(
+  "/api/mapper-headers",
+  withMulter(upload.single("kenya")),
+  async (req, res) => {
+    try {
+      const uploaded = req.file || null;
+      const existingKenya = String((req.body && req.body.existingKenya) || "").trim();
+      let fileName = "";
+      let buffer = null;
+      if (uploaded) {
+        assertExcelUpload(uploaded, "Mapper file");
+        fileName = uploaded.originalname;
+        buffer = uploaded.buffer;
+      } else if (existingKenya) {
+        const abs = resolveKenyaRelative(existingKenya);
+        fileName = path.basename(abs);
+        buffer = fs.readFileSync(abs);
+      } else {
+        const err = new Error("Upload a mapper file or pick an existing one.");
+        err.status = 400;
+        throw err;
+      }
+      const listed = listMapperHeaders(buffer, fileName);
+      res.json({
+        ok: listed.ok !== false || (listed.headers && listed.headers.length > 0),
+        ...listed,
+      });
+    } catch (err) {
+      res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+    }
+  }
+);
 
 app.get("/api/download/excel", (req, res) => {
   try {

@@ -2,9 +2,11 @@ const clientFileEl = document.getElementById("clientFile");
 const kenyaFileEl = document.getElementById("kenyaFile");
 const existingClientEl = document.getElementById("existingClient");
 const existingKenyaEl = document.getElementById("existingKenya");
+const mapperHeaderEl = document.getElementById("mapperHeader");
 const moduleEl = document.getElementById("module");
 const moduleCustomEl = document.getElementById("moduleCustom");
 const entityEl = document.getElementById("entity");
+const entityChecksEl = document.getElementById("entityChecks");
 const serverBannerEl = document.getElementById("serverBanner");
 const versionsEl = document.getElementById("versions");
 const testcaseTypeEl = document.getElementById("testcaseType");
@@ -124,7 +126,16 @@ function selectedModule() {
 }
 
 function selectedEntity() {
+  if (entityChecksEl) {
+    return checkedValues(entityChecksEl).join(", ");
+  }
   return (entityEl && entityEl.value.trim()) || "";
+}
+
+function selectedEntities() {
+  if (entityChecksEl) return checkedValues(entityChecksEl);
+  const one = selectedEntity();
+  return one ? [one] : [];
 }
 
 function cmpSelectedModule() {
@@ -232,7 +243,7 @@ function renderStats(summary) {
     ["Steps", summary.mappedStepCount, summary.stepMatch ? "PASS" : "FAIL"],
     ["Sequence", summary.seqOk ? "OK" : "FIX", summary.seqOk ? "PASS" : "FAIL"],
     [
-      "Kenya pre-reqs",
+      "Mapper pre-reqs",
       `${summary.kenyaMatched || 0}/${summary.kenyaCount || 0}`,
       summary.kenyaCount ? "mapped" : "none",
     ],
@@ -307,7 +318,7 @@ function renderBanner(summary) {
     validateBannerEl.innerHTML = `<strong>Review found ${errors} error(s)</strong> · ${warns} warning(s) · ${fixes} auto-fix(es). Check Validation before importing.`;
   } else if (warns) {
     validateBannerEl.classList.add("warn");
-    validateBannerEl.innerHTML = `<strong>${warns} warning(s)</strong> · ${fixes} auto-fix(es) applied (sequence, empty steps, Kenya pre-reqs).`;
+    validateBannerEl.innerHTML = `<strong>${warns} warning(s)</strong> · ${fixes} auto-fix(es) applied (sequence, empty steps, mapper pre-reqs).`;
   } else {
     validateBannerEl.classList.add("ok");
     validateBannerEl.innerHTML = `<strong>Review passed.</strong> ${fixes} auto-fix(es) applied. Ready to generate SimplifyQA Excel.`;
@@ -320,9 +331,10 @@ function formDataFromUi() {
   if (kenyaFileEl.files[0]) fd.append("kenya", kenyaFileEl.files[0]);
   fd.append("existingClient", existingClientEl.value || "");
   fd.append("existingKenya", existingKenyaEl.value || "");
+  fd.append("mapperHeader", (mapperHeaderEl && mapperHeaderEl.value) || "");
   fd.append("module", selectedModule());
   fd.append("moduleCustom", (moduleCustomEl && moduleCustomEl.value.trim()) || "");
-  fd.append("entity", selectedEntity());
+  selectedEntities().forEach((v) => fd.append("entity", v));
   fd.append("versions", versionsEl.value.trim() || "v1.0");
   fd.append("testcaseType", testcaseTypeEl.value.trim() || "WEB");
   return fd;
@@ -369,8 +381,8 @@ async function run(path, generated) {
     setStatus(runStatusEl, "Select a Module, or type a custom module.", "bad");
     return;
   }
-  if (!selectedEntity()) {
-    setStatus(runStatusEl, "Select an Entity (Life UG, Gen UG, or Gen TZ).", "bad");
+  if (!selectedEntities().length) {
+    setStatus(runStatusEl, "Select at least one Entity (Life UG, Gen UG, or Gen TZ).", "bad");
     return;
   }
   if (!clientFileEl.files[0] && !existingClientEl.value) {
@@ -418,7 +430,7 @@ async function run(path, generated) {
 
 async function loadConfig() {
   fillChoices(moduleEl, FALLBACK_MODULES, "-- Select module --");
-  fillChoices(entityEl, FALLBACK_ENTITIES, "-- Select entity --");
+  fillMapEntityChecks(FALLBACK_ENTITIES);
   const data = await apiFetch("/api/config");
   if (!data.ok) return;
   showServerBanner(true, "");
@@ -427,16 +439,17 @@ async function loadConfig() {
     versionEl.textContent = `v${String(data.version).replace(/^v/i, "")}`;
   }
   fillSelect(existingClientEl, data.clientFiles, "Or pick an existing Client doc");
-  fillSelect(existingKenyaEl, data.kenyaFiles, "Or pick an existing Kenya original");
+  fillSelect(existingKenyaEl, data.kenyaFiles, "Or pick an existing mapper file");
   fillChoices(moduleEl, data.modules || FALLBACK_MODULES, "-- Select module --");
-  fillChoices(entityEl, data.entities || FALLBACK_ENTITIES, "-- Select entity --");
+  fillMapEntityChecks(data.entities || FALLBACK_ENTITIES);
   if (cmpExistingAEl) fillSelect(cmpExistingAEl, data.clientFiles, "Or pick an existing Client doc");
   if (cmpExistingBEl) fillSelect(cmpExistingBEl, data.clientFiles, "Or pick an existing Client doc");
-  if (cmpExistingKenyaEl) fillSelect(cmpExistingKenyaEl, data.kenyaFiles, "Or pick an existing Kenya original");
+  if (cmpExistingKenyaEl) fillSelect(cmpExistingKenyaEl, data.kenyaFiles, "Or pick an existing mapper file");
   if (cmpModuleEl) fillChoices(cmpModuleEl, data.modules || FALLBACK_MODULES, "-- Select module --");
   fillEntityChecks(data.entities || FALLBACK_ENTITIES);
   applyCompareProps(data.props || {});
   const props = data.props || {};
+  applyMapEntityFromProps(props);
   if (props.Versions) versionsEl.value = props.Versions;
   if (props.TestcaseType) testcaseTypeEl.value = props.TestcaseType;
   if (props.Versions && cmpVersionsEl) cmpVersionsEl.value = props.Versions;
@@ -456,6 +469,7 @@ async function loadProperties() {
   testcaseTypeEl.value = props.TestcaseType || testcaseTypeEl.value || "WEB";
   if (cmpVersionsEl) cmpVersionsEl.value = props.Versions || cmpVersionsEl.value || "v1.0";
   if (cmpTypeEl) cmpTypeEl.value = props.TestcaseType || cmpTypeEl.value || "WEB";
+  applyMapEntityFromProps(props);
   applyCompareProps(props);
   setStatus(propsStatusEl, "Loaded mapping.properties.", "ok");
 }
@@ -591,7 +605,13 @@ document.getElementById("reloadPropsBtn").addEventListener("click", loadProperti
 document.getElementById("savePropsBtn").addEventListener("click", saveProperties);
 document.getElementById("reloadHistoryBtn").addEventListener("click", loadHistory);
 clientFileEl.addEventListener("change", () => onXlsxChosen(clientFileEl, "Client document"));
-kenyaFileEl.addEventListener("change", () => onXlsxChosen(kenyaFileEl, "Kenya document"));
+kenyaFileEl.addEventListener("change", () => {
+  onXlsxChosen(kenyaFileEl, "Mapper file");
+  refreshMapperHeaders("map");
+});
+if (existingKenyaEl) {
+  existingKenyaEl.addEventListener("change", () => refreshMapperHeaders("map"));
+}
 bindDropzone(document.getElementById("clientDrop"), clientFileEl);
 bindDropzone(document.getElementById("kenyaDrop"), kenyaFileEl);
 ["dragover", "drop"].forEach((evt) => {
@@ -603,7 +623,7 @@ bindDropzone(document.getElementById("kenyaDrop"), kenyaFileEl);
 });
 
 fillChoices(moduleEl, FALLBACK_MODULES, "-- Select module --");
-fillChoices(entityEl, FALLBACK_ENTITIES, "-- Select entity --");
+fillMapEntityChecks(FALLBACK_ENTITIES);
 
 const viewMapEl = document.getElementById("viewMap");
 const viewCompareEl = document.getElementById("viewCompare");
@@ -615,6 +635,7 @@ const cmpExistingAEl = document.getElementById("cmpExistingA");
 const cmpExistingBEl = document.getElementById("cmpExistingB");
 const cmpKenyaFileEl = document.getElementById("cmpKenyaFile");
 const cmpExistingKenyaEl = document.getElementById("cmpExistingKenya");
+const cmpMapperHeaderEl = document.getElementById("cmpMapperHeader");
 const cmpModuleEl = document.getElementById("cmpModule");
 const cmpModuleCustomEl = document.getElementById("cmpModuleCustom");
 const cmpEntityCommonEl = document.getElementById("cmpEntityCommon");
@@ -656,6 +677,88 @@ function setView(which) {
     tabCompare.classList.toggle("active", compare);
     tabCompare.setAttribute("aria-selected", compare ? "true" : "false");
   }
+  if (compare) setCompareStep(1);
+}
+
+function hasCompareExcelA() {
+  return Boolean(
+    (cmpFileAEl && cmpFileAEl.files && cmpFileAEl.files[0]) ||
+      (cmpExistingAEl && cmpExistingAEl.value)
+  );
+}
+
+function hasCompareExcelB() {
+  return Boolean(
+    (cmpFileBEl && cmpFileBEl.files && cmpFileBEl.files[0]) ||
+      (cmpExistingBEl && cmpExistingBEl.value)
+  );
+}
+
+function setCompareStep(step) {
+  const n = Number(step) === 2 ? 2 : 1;
+  const step1 = document.getElementById("cmpStep1");
+  const step2 = document.getElementById("cmpStep2");
+  const tab1 = document.getElementById("cmpWizardTab1");
+  const tab2 = document.getElementById("cmpWizardTab2");
+  if (step1) step1.classList.toggle("hidden", n !== 1);
+  if (step2) step2.classList.toggle("hidden", n !== 2);
+  if (tab1) {
+    tab1.classList.toggle("active", n === 1);
+    tab1.classList.toggle("done", n > 1);
+  }
+  if (tab2) {
+    tab2.classList.toggle("active", n === 2);
+    tab2.classList.toggle("done", false);
+  }
+  if (n === 1) {
+    const s1 = document.getElementById("cmpStep1Status");
+    if (s1) {
+      s1.textContent = "";
+      s1.className = "status";
+    }
+  }
+}
+
+function goCompareNext() {
+  const statusEl = document.getElementById("cmpStep1Status");
+  if (!hasCompareExcelA()) {
+    showCmpNotice("Choose Excel A before continuing.", "bad");
+    if (statusEl) setStatus(statusEl, "Choose Excel A.", "bad");
+    return;
+  }
+  if (!hasCompareExcelB()) {
+    showCmpNotice("Choose Excel B before continuing.", "bad");
+    if (statusEl) setStatus(statusEl, "Choose Excel B.", "bad");
+    return;
+  }
+  showCmpNotice("");
+  if (statusEl) setStatus(statusEl, "");
+  setCompareStep(2);
+}
+
+function goCompareBack() {
+  setCompareStep(1);
+}
+
+function fillMapEntityChecks(values) {
+  if (!entityChecksEl) return;
+  const list = values && values.length ? values : FALLBACK_ENTITIES;
+  const selected = checkedValues(entityChecksEl);
+  entityChecksEl.innerHTML = list
+    .map(
+      (value) =>
+        `<label class="check-opt"><input type="checkbox" value="${escapeHtml(
+          value
+        )}"> ${escapeHtml(value)}</label>`
+    )
+    .join("");
+  setCheckedValues(entityChecksEl, selected.length ? selected : ["Life UG"]);
+}
+
+function applyMapEntityFromProps(props) {
+  if (!props || !entityChecksEl) return;
+  const fromProps = parseEntityProp(props.Entity);
+  if (fromProps.length) setCheckedValues(entityChecksEl, fromProps);
 }
 
 function fillEntityChecks(values) {
@@ -706,8 +809,7 @@ function parseEntityProp(value) {
 
 function applyCompareProps(props) {
   if (!props) return;
-  if (props.CompareModule && cmpModuleEl) cmpModuleEl.value = props.CompareModule;
-  if (props.CompareModuleCustom && cmpModuleCustomEl) cmpModuleCustomEl.value = props.CompareModuleCustom;
+  // Module is never auto-selected — user must choose (or type a custom module).
   if (props.Versions && cmpVersionsEl) cmpVersionsEl.value = props.Versions;
   if (props.TestcaseType && cmpTypeEl) cmpTypeEl.value = props.TestcaseType;
   setCheckedValues(cmpEntityCommonEl, parseEntityProp(props.CompareEntityCommon));
@@ -719,6 +821,8 @@ function applyCompareProps(props) {
       cmpExistingKenyaEl.value = kenyaVal;
     }
   }
+  if (cmpModuleEl) cmpModuleEl.value = "";
+  if (cmpModuleCustomEl) cmpModuleCustomEl.value = "";
 }
 
 function upsertPropLine(text, key, value) {
@@ -820,8 +924,8 @@ function renderCmpStats(summary) {
   const bOk = bSum === (c.b || 0);
   cmpStatsEl.classList.remove("hidden");
   cmpStatsEl.innerHTML = [
-    ["Client A", c.a || 0, summary.fileA || ""],
-    ["Client B", c.b || 0, summary.fileB || ""],
+    ["Excel A", c.a || 0, summary.fileA || ""],
+    ["Excel B", c.b || 0, summary.fileB || ""],
     ["Common", c.common || 0, "same steps"],
     ["Unmatched A", c.unmatchedA || 0, summary.sheets && summary.sheets.a],
     ["Unmatched B", c.unmatchedB || 0, summary.sheets && summary.sheets.b],
@@ -830,7 +934,7 @@ function renderCmpStats(summary) {
     ["Steps differ", c.nameMatchStepMismatch || 0, "both unmatched"],
     ["Sequence", summary.seqOk ? "OK" : "FIX", summary.seqOk ? "PASS" : "FAIL"],
     [
-      "Kenya pre-reqs",
+      "Mapper pre-reqs",
       `${summary.kenyaMatched || 0}/${summary.kenyaCount || 0}`,
       summary.kenyaCount ? "mapped" : "none",
     ],
@@ -878,6 +982,7 @@ function compareFormData() {
   fd.append("existingClientA", cmpExistingAEl.value || "");
   fd.append("existingClientB", cmpExistingBEl.value || "");
   fd.append("existingKenya", (cmpExistingKenyaEl && cmpExistingKenyaEl.value) || "");
+  fd.append("mapperHeader", (cmpMapperHeaderEl && cmpMapperHeaderEl.value) || "");
   fd.append("module", cmpSelectedModule());
   fd.append("moduleCustom", (cmpModuleCustomEl && cmpModuleCustomEl.value.trim()) || "");
   checkedValues(cmpEntityCommonEl).forEach((v) => fd.append("entityCommon", v));
@@ -893,7 +998,7 @@ function showCmpResult(data, generated) {
   const s = data.summary || {};
   const c = s.counts || {};
   cmpResultMessageEl.textContent = generated
-    ? `Generated ${s.outName} · Common ${c.common} · unmatched A ${c.unmatchedA} · unmatched B ${c.unmatchedB} · Kenya ${s.kenyaMatched || 0}/${s.kenyaCount || 0}.`
+    ? `Generated ${s.outName} · Common ${c.common} · unmatched A ${c.unmatchedA} · unmatched B ${c.unmatchedB} · Mapper ${s.kenyaMatched || 0}/${s.kenyaCount || 0}.`
     : `Reviewed Common ${c.common} · unmatched A ${c.unmatchedA} · unmatched B ${c.unmatchedB}. Generate Excel when ready.`;
   cmpResultLinksEl.innerHTML = "";
   if (data.download && data.download.excel) {
@@ -931,23 +1036,23 @@ async function runCompare(path, generated) {
     return;
   }
   if (!checkedValues(cmpEntityUniqueAEl).length) {
-    setStatus(cmpStatusEl, "Select Entity for unique Client A sheet.", "bad");
-    showCmpNotice("Select Entity for unique Client A sheet.", "bad");
+    setStatus(cmpStatusEl, "Select Entity for unique Excel A sheet.", "bad");
+    showCmpNotice("Select Entity for unique Excel A sheet.", "bad");
     return;
   }
   if (!checkedValues(cmpEntityUniqueBEl).length) {
-    setStatus(cmpStatusEl, "Select Entity for unique Client B sheet.", "bad");
-    showCmpNotice("Select Entity for unique Client B sheet.", "bad");
+    setStatus(cmpStatusEl, "Select Entity for unique Excel B sheet.", "bad");
+    showCmpNotice("Select Entity for unique Excel B sheet.", "bad");
     return;
   }
   if (!cmpFileAEl || (!cmpFileAEl.files[0] && !(cmpExistingAEl && cmpExistingAEl.value))) {
-    setStatus(cmpStatusEl, "Choose Client A.", "bad");
-    showCmpNotice("Choose Client A.", "bad");
+    setStatus(cmpStatusEl, "Choose Excel A.", "bad");
+    showCmpNotice("Choose Excel A.", "bad");
     return;
   }
   if (!cmpFileBEl || (!cmpFileBEl.files[0] && !(cmpExistingBEl && cmpExistingBEl.value))) {
-    setStatus(cmpStatusEl, "Choose Client B.", "bad");
-    showCmpNotice("Choose Client B.", "bad");
+    setStatus(cmpStatusEl, "Choose Excel B.", "bad");
+    showCmpNotice("Choose Excel B.", "bad");
     return;
   }
 
@@ -986,6 +1091,27 @@ async function runCompare(path, generated) {
 
 if (tabMap) tabMap.addEventListener("click", () => setView("map"));
 if (tabCompare) tabCompare.addEventListener("click", () => setView("compare"));
+const cmpNextBtn = document.getElementById("cmpNextBtn");
+const cmpBackBtn = document.getElementById("cmpBackBtn");
+const cmpWizardTab1 = document.getElementById("cmpWizardTab1");
+const cmpWizardTab2 = document.getElementById("cmpWizardTab2");
+if (cmpNextBtn) cmpNextBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  goCompareNext();
+});
+if (cmpBackBtn) cmpBackBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  goCompareBack();
+});
+if (cmpWizardTab1) {
+  cmpWizardTab1.addEventListener("click", () => setCompareStep(1));
+}
+if (cmpWizardTab2) {
+  cmpWizardTab2.addEventListener("click", () => {
+    if (hasCompareExcelA() && hasCompareExcelB()) setCompareStep(2);
+    else goCompareNext();
+  });
+}
 if (cmpBtn) {
   cmpBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -1001,9 +1127,15 @@ if (cmpReviewBtn) {
 if (document.getElementById("compareForm")) {
   document.getElementById("compareForm").addEventListener("submit", (e) => {
     e.preventDefault();
+    const step2 = document.getElementById("cmpStep2");
+    if (step2 && step2.classList.contains("hidden")) {
+      goCompareNext();
+      return;
+    }
     runCompare("/api/compare", true);
   });
 }
+setCompareStep(1);
 if (document.getElementById("cmpReloadFormBtn")) {
   document.getElementById("cmpReloadFormBtn").addEventListener("click", loadProperties);
 }
@@ -1014,7 +1146,15 @@ if (document.getElementById("cmpSaveMapBtn")) {
 }
 if (cmpFileAEl) cmpFileAEl.addEventListener("change", () => onCmpXlsxChosen(cmpFileAEl));
 if (cmpFileBEl) cmpFileBEl.addEventListener("change", () => onCmpXlsxChosen(cmpFileBEl));
-if (cmpKenyaFileEl) cmpKenyaFileEl.addEventListener("change", () => onCmpXlsxChosen(cmpKenyaFileEl));
+if (cmpKenyaFileEl) {
+  cmpKenyaFileEl.addEventListener("change", () => {
+    onCmpXlsxChosen(cmpKenyaFileEl);
+    refreshMapperHeaders("compare");
+  });
+}
+if (cmpExistingKenyaEl) {
+  cmpExistingKenyaEl.addEventListener("change", () => refreshMapperHeaders("compare"));
+}
 bindDropzone(document.getElementById("cmpDropA"), cmpFileAEl, () => {
   showCmpNotice(XLSX_ONLY_MSG, "bad");
   setStatus(cmpStatusEl, XLSX_ONLY_MSG, "bad");
@@ -1030,9 +1170,109 @@ bindDropzone(document.getElementById("cmpKenyaDrop"), cmpKenyaFileEl, () => {
 fillChoices(cmpModuleEl, FALLBACK_MODULES, "-- Select module --");
 fillEntityChecks(FALLBACK_ENTITIES);
 
+function resetMapperHeaderSelect(selectEl) {
+  if (!selectEl) return;
+  selectEl.innerHTML = `<option value="">Pre-Requisite (default)</option>`;
+}
+
+function fillMapperHeaderSelect(selectEl, data) {
+  if (!selectEl) return;
+  const previous = selectEl.value;
+  resetMapperHeaderSelect(selectEl);
+  const headers = (data && data.headers) || [];
+  for (const name of headers) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    selectEl.appendChild(opt);
+  }
+  if (previous && [...selectEl.options].some((o) => o.value === previous)) {
+    selectEl.value = previous;
+  } else {
+    // Keep empty = default Pre-Requisite auto-detect (even if a prereq-like header was found)
+    selectEl.value = "";
+  }
+}
+
+async function refreshMapperHeaders(which) {
+  const isCompare = which === "compare";
+  const fileInput = isCompare ? cmpKenyaFileEl : kenyaFileEl;
+  const existingEl = isCompare ? cmpExistingKenyaEl : existingKenyaEl;
+  const headerEl = isCompare ? cmpMapperHeaderEl : mapperHeaderEl;
+  if (!headerEl) return;
+
+  const hasFile = fileInput && fileInput.files && fileInput.files[0];
+  const existing = existingEl && existingEl.value;
+  if (!hasFile && !existing) {
+    resetMapperHeaderSelect(headerEl);
+    return;
+  }
+
+  const fd = new FormData();
+  if (hasFile) fd.append("kenya", fileInput.files[0]);
+  if (existing) fd.append("existingKenya", existing);
+  try {
+    const data = await apiFetch("/api/mapper-headers", { method: "POST", body: fd });
+    if (!data.ok && !(data.headers && data.headers.length)) {
+      resetMapperHeaderSelect(headerEl);
+      return;
+    }
+    fillMapperHeaderSelect(headerEl, data);
+  } catch {
+    resetMapperHeaderSelect(headerEl);
+  }
+}
+
+function setServerBotState(state, detail) {
+  const bot = document.getElementById("serverBot");
+  const text = document.getElementById("serverBotText");
+  if (!bot || !text) return;
+  bot.classList.remove("up", "down", "unknown");
+  bot.classList.add(state);
+  if (state === "up") {
+    text.textContent = "Server up";
+    bot.title = detail || "Server is reachable";
+  } else if (state === "down") {
+    text.textContent = "Server down";
+    bot.title = detail || "Server is not reachable. Run npm start or start-ui.cmd";
+  } else {
+    text.textContent = "Checking…";
+    bot.title = "Checking server status";
+  }
+}
+
+async function checkServerStatus() {
+  try {
+    const res = await fetch("/api/health", { cache: "no-store" });
+    if (!res.ok) {
+      setServerBotState("down", `HTTP ${res.status}`);
+      return false;
+    }
+    const icea = res.headers.get("X-ICEA-Lion");
+    const data = await res.json().catch(() => null);
+    if (!data || data.ok !== true || icea !== "testcase-review") {
+      setServerBotState("down", "Wrong server on this URL (use npm start, not Live Preview)");
+      return false;
+    }
+    setServerBotState("up", `v${data.version || "?"} · pid ${data.pid || "?"}`);
+    return true;
+  } catch {
+    setServerBotState("down", "Cannot reach server. Run npm start or double-click start-ui.cmd");
+    return false;
+  }
+}
+
+setServerBotState("unknown");
+checkServerStatus();
+setInterval(checkServerStatus, 5000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) checkServerStatus();
+});
+
 loadConfig().catch((err) => {
   showServerBanner(false, err.message || String(err));
   setStatus(runStatusEl, err.message || String(err), "bad");
+  setServerBotState("down", err.message || String(err));
 });
 loadProperties().catch((err) => setStatus(propsStatusEl, err.message || String(err), "bad"));
 loadHistory().catch(() => {});

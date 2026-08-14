@@ -527,7 +527,21 @@ async function main() {
         html.includes('id="compareForm"')
     );
     ok(
-      "compare has Kenya upload, review, per-sheet entities",
+      "compare module renamed and mapper header present",
+      html.includes("Compare, Map &amp; Report") &&
+        html.includes("Excel A") &&
+        html.includes("Excel B") &&
+        html.includes('id="mapperHeader"') &&
+        html.includes('id="cmpMapperHeader"') &&
+        html.includes('id="serverBot"') &&
+        html.includes('id="entityChecks"') &&
+        html.includes("compare-view") &&
+        html.includes('id="cmpStep1"') &&
+        html.includes('id="cmpStep2"') &&
+        html.includes('id="cmpNextBtn"')
+    );
+    ok(
+      "compare has mapper upload, review, per-sheet entities",
       html.includes('id="cmpKenyaDrop"') &&
         html.includes('id="cmpReviewBtn"') &&
         html.includes('id="cmpEntityCommon"') &&

@@ -19,10 +19,20 @@
           <div class="brand-mark" aria-hidden="true">IL</div>
           <div class="brand-text">
             <h1>ICEA LION Testcase Review</h1>
-            <p>Review client cases, map Kenya pre-requisites, export SimplifyQA Excel</p>
+            <p>Review client cases, map Pre-Requisites from a mapper file, export SimplifyQA Excel</p>
           </div>
         </div>
         <div class="brand-right">
+          <button
+            type="button"
+            class="server-bot unknown"
+            id="serverBot"
+            title="Server status unknown"
+            aria-label="Server status"
+          >
+            <span class="server-bot-icon" aria-hidden="true">🤖</span>
+            <span class="server-bot-text" id="serverBotText">Checking…</span>
+          </button>
           <span class="version-badge" id="appVersion" title="App version">v1.0.0</span>
           <span class="simplify-label">Simplify3x</span>
         </div>
@@ -35,7 +45,7 @@
           Map to SimplifyQA
         </button>
         <button type="button" class="module-tab" id="tabCompare" data-view="compare" role="tab" aria-selected="false">
-          Compare clients
+          Compare, Map &amp; Report
         </button>
       </nav>
 
@@ -68,14 +78,21 @@
                 </select>
               </div>
               <div class="field">
-                <span>Kenya original</span>
-                <div class="dropzone" id="kenyaDrop" data-label="Kenya document">
+                <span>Mapper file <em class="optional-tag">(optional)</em></span>
+                <div class="dropzone" id="kenyaDrop" data-label="Mapper file">
                   <p class="drop-hint">Drop .xlsx here or browse</p>
                   <input id="kenyaFile" name="kenya" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
                 </div>
                 <select id="existingKenya">
-                  <option value="">Or pick existing Kenya original</option>
+                  <option value="">Or pick existing mapper file</option>
                 </select>
+                <label class="field mapper-header-field">
+                  <span>Map header → Pre-Requisite</span>
+                  <select id="mapperHeader" name="mapperHeader">
+                    <option value="">Pre-Requisite (default)</option>
+                  </select>
+                </label>
+                <p class="hint">If you do not choose a header, Pre-Requisite is used automatically.</p>
               </div>
             </div>
 
@@ -86,12 +103,10 @@
                   <option value="">-- Select module --</option>
                 </select>
               </label>
-              <label class="field">
-                <span>Entity *</span>
-                <select id="entity" name="entity" required>
-                  <option value="">-- Select entity --</option>
-                </select>
-              </label>
+              <div class="field">
+                <span>Entity * <em class="optional-tag">(pick one or more)</em></span>
+                <div class="check-list check-list-inline" id="entityChecks" data-entity-group="map"></div>
+              </div>
             </div>
 
             <div class="grid-3">
@@ -138,10 +153,10 @@
         </section>
         </div>
 
-        <div id="viewCompare" class="hidden">
-        <section class="panel" aria-labelledby="compare-heading">
+        <div id="viewCompare" class="hidden compare-view">
+        <section class="panel compare-panel" aria-labelledby="compare-heading">
             <div class="panel-head">
-              <h2 id="compare-heading">Compare clients</h2>
+              <h2 id="compare-heading">Compare, Map &amp; Report</h2>
               <div class="btn-row">
                 <button type="button" class="btn ghost" id="cmpReloadFormBtn">
                   Load from properties
@@ -151,105 +166,141 @@
                 </button>
               </div>
             </div>
-            <p class="hint compare-hint">
-              Match by Name + TC ID when both have IDs; otherwise by Name.
-              Same name but different steps → unmatched on both unique sheets.
-              Kenya original maps Pre-Requisites by exact testcase name onto Common and unique sheets.
-              Map a different Entity (or several) per output sheet; Save mapping stores it in mapping.properties.
-            </p>
 
-            <form id="compareForm" class="form">
+            <nav class="wizard-steps" aria-label="Compare steps">
+              <button type="button" class="wizard-step active" id="cmpWizardTab1" data-cmp-step="1">
+                <span class="wizard-num">1</span>
+                <span class="wizard-label">Upload files</span>
+              </button>
+              <span class="wizard-sep" aria-hidden="true"></span>
+              <button type="button" class="wizard-step" id="cmpWizardTab2" data-cmp-step="2">
+                <span class="wizard-num">2</span>
+                <span class="wizard-label">Configure &amp; generate</span>
+              </button>
+            </nav>
+
+            <details class="compare-help">
+              <summary>How matching works</summary>
+              <p class="hint compare-hint">
+                Match by Name + TC ID when both have IDs; otherwise by Name.
+                Same name but different steps → unmatched on both unique sheets.
+                Optional <strong>Mapper file</strong> fills Pre-Requisites by exact testcase name
+                (pick which header to map; default is Pre-Requisite).
+              </p>
+            </details>
+
+            <form id="compareForm" class="form compare-form">
               <div id="cmpNotice" class="validate-banner hidden" role="alert"></div>
 
-              <div class="grid-2">
-                <div class="field">
-                  <span>Client A *</span>
-                  <div class="dropzone" id="cmpDropA" data-label="Client A">
+              <div id="cmpStep1" class="wizard-pane">
+                <p class="wizard-intro">Choose the two client Excels to compare. Mapper file is optional.</p>
+
+                <div class="grid-2 compare-files-main">
+                  <div class="field">
+                    <span>Excel A *</span>
+                    <div class="dropzone" id="cmpDropA" data-label="Excel A">
+                      <p class="drop-hint">Drop .xlsx here or browse</p>
+                      <input id="cmpFileA" name="clientA" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                    </div>
+                    <select id="cmpExistingA">
+                      <option value="">Or pick existing Client doc</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <span>Excel B *</span>
+                    <div class="dropzone" id="cmpDropB" data-label="Excel B">
+                      <p class="drop-hint">Drop .xlsx here or browse</p>
+                      <input id="cmpFileB" name="clientB" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                    </div>
+                    <select id="cmpExistingB">
+                      <option value="">Or pick existing Client doc</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="field mapper-optional-block">
+                  <span>Mapper file <em class="optional-tag">(optional 3rd input)</em></span>
+                  <div class="dropzone" id="cmpKenyaDrop" data-label="Mapper file">
                     <p class="drop-hint">Drop .xlsx here or browse</p>
-                    <input id="cmpFileA" name="clientA" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                    <input id="cmpKenyaFile" name="kenya" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
                   </div>
-                  <select id="cmpExistingA">
-                    <option value="">Or pick existing Client doc</option>
-                  </select>
+                  <div class="grid-2 mapper-optional-row">
+                    <select id="cmpExistingKenya">
+                      <option value="">Or pick existing mapper file</option>
+                    </select>
+                    <select id="cmpMapperHeader" name="mapperHeader" title="Map header → Pre-Requisite">
+                      <option value="">Pre-Requisite (default)</option>
+                    </select>
+                  </div>
+                  <p class="hint">If you do not choose a header, Pre-Requisite is used automatically.</p>
                 </div>
-                <div class="field">
-                  <span>Client B *</span>
-                  <div class="dropzone" id="cmpDropB" data-label="Client B">
-                    <p class="drop-hint">Drop .xlsx here or browse</p>
-                    <input id="cmpFileB" name="clientB" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
-                  </div>
-                  <select id="cmpExistingB">
-                    <option value="">Or pick existing Client doc</option>
-                  </select>
-                </div>
-              </div>
 
-              <div class="field">
-                <span>Kenya original (3rd input)</span>
-                <div class="dropzone" id="cmpKenyaDrop" data-label="Kenya document">
-                  <p class="drop-hint">Drop .xlsx here or browse</p>
-                  <input id="cmpKenyaFile" name="kenya" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
-                </div>
-                <select id="cmpExistingKenya">
-                  <option value="">Or pick existing Kenya original</option>
-                </select>
-              </div>
-
-              <div class="grid-2">
-                <label class="field">
-                  <span>Module *</span>
-                  <select id="cmpModule" name="module">
-                    <option value="">-- Select module --</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>Custom module</span>
-                  <input id="cmpModuleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
-                </label>
-              </div>
-
-              <div class="entity-map">
-                <p class="entity-map-title">Entity mapping per output sheet *</p>
-                <div class="grid-3">
-                  <div class="field">
-                    <span>Common sheet (multi-select)</span>
-                    <div class="check-list" id="cmpEntityCommon" data-entity-group="common"></div>
-                  </div>
-                  <div class="field">
-                    <span>Unique Client A sheet</span>
-                    <div class="check-list" id="cmpEntityUniqueA" data-entity-group="uniqueA"></div>
-                  </div>
-                  <div class="field">
-                    <span>Unique Client B sheet</span>
-                    <div class="check-list" id="cmpEntityUniqueB" data-entity-group="uniqueB"></div>
-                  </div>
+                <div class="actions wizard-actions">
+                  <button type="button" class="btn primary" id="cmpNextBtn">Next: Configure</button>
+                  <p class="status" id="cmpStep1Status" aria-live="polite"></p>
                 </div>
               </div>
 
-              <div class="grid-2">
-                <label class="field">
-                  <span>Versions *</span>
-                  <input id="cmpVersions" name="versions" type="text" value="v1.0" />
-                </label>
-                <label class="field">
-                  <span>Testcase Type *</span>
-                  <input id="cmpType" name="testcaseType" type="text" value="WEB" />
-                </label>
-              </div>
+              <div id="cmpStep2" class="wizard-pane hidden">
+                <p class="wizard-intro">Set module, entities, then review or generate the SimplifyQA workbook.</p>
 
-              <div class="actions sticky-actions">
-                <button type="button" class="btn secondary" id="cmpReviewBtn">Review only</button>
-                <button type="button" class="btn primary" id="cmpBtn">Generate Excel</button>
-                <p class="status" id="cmpStatus" aria-live="polite"></p>
-              </div>
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Module *</span>
+                    <select id="cmpModule" name="module">
+                      <option value="">-- Select module --</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Custom module</span>
+                    <input id="cmpModuleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
+                  </label>
+                </div>
 
-              <ol class="progress-steps" id="cmpProgressSteps" hidden>
-                <li data-step="upload">Upload</li>
-                <li data-step="review">Review</li>
-                <li data-step="prereq">Pre-reqs</li>
-                <li data-step="generate">Generate</li>
-                <li data-step="done">Done</li>
-              </ol>
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Versions *</span>
+                    <input id="cmpVersions" name="versions" type="text" value="v1.0" />
+                  </label>
+                  <label class="field">
+                    <span>Testcase Type *</span>
+                    <input id="cmpType" name="testcaseType" type="text" value="WEB" />
+                  </label>
+                </div>
+
+                <div class="entity-map">
+                  <p class="entity-map-title">Entity per output sheet * <em class="optional-tag">(single or multi)</em></p>
+                  <div class="grid-3">
+                    <div class="field">
+                      <span>Common sheet</span>
+                      <div class="check-list check-list-inline" id="cmpEntityCommon" data-entity-group="common"></div>
+                    </div>
+                    <div class="field">
+                      <span>Unique Excel A</span>
+                      <div class="check-list check-list-inline" id="cmpEntityUniqueA" data-entity-group="uniqueA"></div>
+                    </div>
+                    <div class="field">
+                      <span>Unique Excel B</span>
+                      <div class="check-list check-list-inline" id="cmpEntityUniqueB" data-entity-group="uniqueB"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="actions sticky-actions">
+                  <button type="button" class="btn ghost" id="cmpBackBtn">Back</button>
+                  <button type="button" class="btn secondary" id="cmpReviewBtn">Review only</button>
+                  <button type="button" class="btn primary" id="cmpBtn">Generate Excel</button>
+                  <p class="status" id="cmpStatus" aria-live="polite"></p>
+                </div>
+
+                <ol class="progress-steps" id="cmpProgressSteps" hidden>
+                  <li data-step="upload">Upload</li>
+                  <li data-step="review">Review</li>
+                  <li data-step="prereq">Pre-reqs</li>
+                  <li data-step="generate">Generate</li>
+                  <li data-step="done">Done</li>
+                </ol>
+              </div>
             </form>
 
             <div class="stats-row hidden" id="cmpStats"></div>
@@ -337,7 +388,7 @@
 
       <footer class="footer">
         <p class="footer-note">
-          Local tool · last step Mandate Screenshot = Yes · Kenya pre-requisites mapped by exact testcase name
+          Local tool · last step Mandate Screenshot = Yes · Mapper file Pre-Requisites by exact testcase name
         </p>
       </footer>
     </div>
