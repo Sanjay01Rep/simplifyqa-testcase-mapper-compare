@@ -454,6 +454,7 @@ async function loadConfig() {
   if (props.TestcaseType) testcaseTypeEl.value = props.TestcaseType;
   if (props.Versions && cmpVersionsEl) cmpVersionsEl.value = props.Versions;
   if (props.TestcaseType && cmpTypeEl) cmpTypeEl.value = props.TestcaseType;
+  if (data.healthPollMs) startHealthPoll(data.healthPollMs);
 }
 
 async function loadProperties() {
@@ -927,8 +928,8 @@ function renderCmpStats(summary) {
     ["Excel A", c.a || 0, summary.fileA || ""],
     ["Excel B", c.b || 0, summary.fileB || ""],
     ["Common", c.common || 0, "same steps"],
-    ["Unmatched A", c.unmatchedA || 0, summary.sheets && summary.sheets.a],
-    ["Unmatched B", c.unmatchedB || 0, summary.sheets && summary.sheets.b],
+    ["Unmatched A", c.unmatchedA || 0, c.unmatchedA ? summary.sheets && summary.sheets.a : "no unique — sheet omitted"],
+    ["Unmatched B", c.unmatchedB || 0, c.unmatchedB ? summary.sheets && summary.sheets.b : "no unique — sheet omitted"],
     ["A total check", `${c.common || 0}+${c.unmatchedA || 0}=${aSum}`, aOk ? "PASS" : "FAIL"],
     ["B total check", `${c.common || 0}+${c.unmatchedB || 0}=${bSum}`, bOk ? "PASS" : "FAIL"],
     ["Steps differ", c.nameMatchStepMismatch || 0, "both unmatched"],
@@ -1242,6 +1243,7 @@ function setServerBotState(state, detail) {
 }
 
 async function checkServerStatus() {
+  if (typeof document !== "undefined" && document.hidden) return false;
   try {
     const res = await fetch("/api/health", { cache: "no-store" });
     if (!res.ok) {
@@ -1264,7 +1266,16 @@ async function checkServerStatus() {
 
 setServerBotState("unknown");
 checkServerStatus();
-setInterval(checkServerStatus, 5000);
+
+let healthPollTimer = null;
+function startHealthPoll(ms) {
+  if (healthPollTimer) clearInterval(healthPollTimer);
+  const interval = Math.max(5000, Number(ms) || 5 * 60 * 1000);
+  healthPollTimer = setInterval(checkServerStatus, interval);
+}
+
+// Default 5 minutes; loadConfig may override from server HEALTH_POLL_MS.
+startHealthPoll(5 * 60 * 1000);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) checkServerStatus();
 });

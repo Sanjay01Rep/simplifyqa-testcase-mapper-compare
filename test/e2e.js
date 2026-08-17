@@ -755,6 +755,35 @@ async function main() {
       ok("AP compare stores per-sheet entities", false);
       ok("AP compare maps Kenya Account paybles prereqs", false);
     }
+
+    const sameFd = new FormData();
+    sameFd.append("existingClientA", "Tax managemnt UG.xlsx");
+    sameFd.append("existingClientB", "Tax managemnt UG.xlsx");
+    sameFd.append("module", "Tax Management");
+    sameFd.append("entityCommon", "Gen UG");
+    sameFd.append("entityUniqueA", "Gen UG");
+    sameFd.append("entityUniqueB", "Gen UG");
+    sameFd.append("versions", "v1.0");
+    sameFd.append("testcaseType", "WEB");
+    const sameCmp = await jsonReq(base, "/api/compare", { method: "POST", body: sameFd });
+    if (sameCmp.data && sameCmp.data.ok && sameCmp.data.download) {
+      ok(
+        "all-common compare has zero unmatched counts",
+        sameCmp.data.summary.counts.unmatchedA === 0 &&
+          sameCmp.data.summary.counts.unmatchedB === 0 &&
+          sameCmp.data.summary.counts.common === sameCmp.data.summary.counts.a
+      );
+      const sameDl = await fetch(base + sameCmp.data.download.excel);
+      const sameBuf = Buffer.from(await sameDl.arrayBuffer());
+      const sameWb = XLSX.read(sameBuf, { type: "buffer" });
+      ok(
+        "all-common compare writes Common sheet only",
+        sameWb.SheetNames.length === 1 && sameWb.SheetNames[0] === "Common"
+      );
+    } else {
+      ok("all-common compare has zero unmatched counts", false);
+      ok("all-common compare writes Common sheet only", false);
+    }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

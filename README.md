@@ -146,6 +146,7 @@ Copy `.env.example` → `.env` (optional). The server auto-loads `.env` on start
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `PORT`   | `3100`  | HTTP port for the UI |
+| `HEALTH_POLL_MS` | `300000` (5 min) | How often the UI status bot calls `/api/health` |
 
 ```powershell
 # Option A — .env file

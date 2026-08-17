@@ -43,6 +43,11 @@ const PROPS_EXAMPLE_PATH = path.join(ROOT, "mapping.properties.example");
 const JOBS_PATH = path.join(ROOT, "jobs.json");
 const HISTORY_PATH = path.join(LOG_DIR, "run-history.json");
 const PORT = Number(process.env.PORT || 3100);
+/** UI status-bot poll interval (ms). Default: 5 minutes. */
+const HEALTH_POLL_MS = Math.max(
+  5000,
+  Number(process.env.HEALTH_POLL_MS || 5 * 60 * 1000) || 5 * 60 * 1000
+);
 
 /** First clone: create mapping.properties from the committed example (never overwrites). */
 function ensureMappingProperties() {
@@ -66,11 +71,10 @@ app.use((req, res, next) => {
   res.setHeader("X-ICEA-Lion", "testcase-review");
   const start = Date.now();
   res.on("finish", () => {
-    if (String(req.originalUrl || "").startsWith("/api")) {
-      console.log(
-        `[api] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - start}ms)`
-      );
-    }
+    const url = String(req.originalUrl || "");
+    // Health is polled by the UI status bot — do not spam the console.
+    if (!url.startsWith("/api") || url.startsWith("/api/health")) return;
+    console.log(`[api] ${req.method} ${url} -> ${res.statusCode} (${Date.now() - start}ms)`);
   });
   next();
 });
@@ -343,6 +347,7 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     app: APP_NAME,
     version: APP_VERSION,
+    healthPollMs: HEALTH_POLL_MS,
     port: PORT,
     pid: process.pid,
     routes: listedApiRoutes(),
@@ -356,6 +361,7 @@ app.get("/api/config", (_req, res) => {
     ok: true,
     app: APP_NAME,
     version: APP_VERSION,
+    healthPollMs: HEALTH_POLL_MS,
     props,
     jobs,
     clientFiles: listClientFiles(),
