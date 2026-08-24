@@ -2,8 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const XLSX = require("xlsx");
 const { app, ROOT } = require("../server");
-const { mapFromBuffers, parseClientWorkbook, exactNameKey } = require("../lib/mapper");
+const { mapFromBuffers, parseClientWorkbook, exactNameKey, buildOutputRows, workbookBuffer } = require("../lib/mapper");
 const { compareTestcases } = require("../lib/compare");
+const { classifyChange, nextVersion, isSkipPath } = require("../scripts/sync-app-version");
 
 const failures = [];
 let passed = 0;
@@ -58,6 +59,23 @@ async function main() {
 
     const cfg = await jsonReq(base, "/api/config");
     ok("config is JSON", cfg.data && cfg.data.ok === true);
+    ok(
+      "config version matches package.json",
+      cfg.data.version === require("../package.json").version
+    );
+    ok("docs-only does not bump version", classifyChange(["README.md", "START-HERE.md"]) === "none");
+    ok("mapping.properties does not bump version", classifyChange(["mapping.properties"]) === "none");
+    ok("tests-only does not bump version", classifyChange(["test/e2e.js"]) === "none");
+    ok("product fix bumps patch", classifyChange(["lib/mapper.js"]) === "patch");
+    ok(
+      "new product file bumps minor",
+      classifyChange(["lib/new-feature.js"], { addedPaths: ["lib/new-feature.js"] }) === "minor"
+    );
+    ok("skip path treats docs as skip", isSkipPath("docs/REVIEW_CHECKLIST.md") === true);
+    ok("patch from 1.1.0 is 1.1.1", nextVersion("1.1.0", "patch", "1.1.0") === "1.1.1");
+    ok("enhancement from 1.1.0 is 1.2.0", nextVersion("1.1.0", "minor", "1.1.0") === "1.2.0");
+    ok("does not double-bump uncommitted patch", nextVersion("1.1.1", "patch", "1.1.0") === "1.1.1");
+    ok("upgrades pending patch to minor", nextVersion("1.1.1", "minor", "1.1.0") === "1.2.0");
     ok(
       "config lists client files",
       Array.isArray(cfg.data.clientFiles) && cfg.data.clientFiles.length > 0
@@ -216,6 +234,30 @@ async function main() {
     );
     ok("sequence continuity", mapped.summary.seqOk === true);
     ok("step count match", mapped.summary.stepMatch === true);
+
+    const blankRows = buildOutputRows(
+      [
+        {
+          name: "Vendor invoice",
+          description: "Create AP invoice",
+          prerequisites: "",
+          steps: [
+            { seq: 1, stepDesc: "Open invoice", expected: "Form opens" },
+            { seq: 2, stepDesc: "Save", expected: "Saved" },
+          ],
+        },
+      ],
+      { Module: "AP", Entity: "Gen TZ", Versions: "v1.0", TestcaseType: "WEB" }
+    );
+    ok(
+      "output rows use undefined not empty string",
+      blankRows.slice(1).every((row) => row.every((v) => v !== ""))
+    );
+    const blankWs = XLSX.read(workbookBuffer(blankRows), { type: "buffer" }).Sheets.Sheet1;
+    const emptyWritten = Object.keys(blankWs).filter((k) => k[0] !== "!" && blankWs[k] && blankWs[k].v === "");
+    ok("generated xlsx omits empty string cells", emptyWritten.length === 0);
+    ok("blank follow-on name cell is omitted", blankWs.A2 && !blankWs.A3);
+    ok("blank labels/parameter cells are omitted", !blankWs.F2 && !blankWs.M2);
 
     const creditReviewed = await mapFromBuffers({
       clientFileName: "Credit Control GE UG-reviewed.xlsx",

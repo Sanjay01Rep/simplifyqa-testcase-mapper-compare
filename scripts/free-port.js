@@ -1,4 +1,25 @@
+const fs = require("fs");
+const path = require("path");
 const { execSync } = require("child_process");
+
+try {
+  require.resolve("express");
+} catch {
+  console.error("");
+  console.error("Missing packages (express). Run this first in THIS folder:");
+  console.error("");
+  console.error("  npm install");
+  console.error("");
+  console.error("Wait until it finishes, then run:");
+  console.error("");
+  console.error("  npm start");
+  console.error("");
+  const nm = path.join(__dirname, "..", "node_modules");
+  if (!fs.existsSync(nm)) {
+    console.error("node_modules folder was not found. npm install has not been run yet.");
+  }
+  process.exit(1);
+}
 
 const port = Number(process.env.PORT || 3100);
 

@@ -1,0 +1,18 @@
+---
+description: Auto-bump the UI version badge for product fixes and enhancements only
+alwaysApply: true
+---
+
+# App version badge
+
+The header `vX.Y.Z` comes from `package.json` via `/api/config`.
+
+After a **product fix** or **enhancement**, run:
+
+```bash
+node scripts/sync-app-version.js
+```
+
+Do **not** bump for docs, README/START-HERE copy, comments, tests-only, `mapping.properties`, or other minor non-product edits.
+
+`npm start` already runs this (at most one bump until the version is committed). Do not hand-edit the badge in `public/index.html` unless the script is unavailable.

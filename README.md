@@ -2,6 +2,8 @@
 
 Internal QA tooling for **ICEA LION** Uganda workstreams. It reviews client Excel testcases, maps Kenya pre-requisites where available, and exports workbooks in **SimplifyQA** template format.
 
+**First-time setup (unzip, Node.js, run):** see **[START-HERE.md](./START-HERE.md)**
+
 **Repository:** [Sanjay01Rep/simplifyqa-testcase-mapper-compare](https://github.com/Sanjay01Rep/simplifyqa-testcase-mapper-compare)
 
 ---

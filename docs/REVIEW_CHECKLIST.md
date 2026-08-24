@@ -1,4 +1,8 @@
-# Client / manager review pack
+# ICEA LION Testcase Review — How to unzip, set up, and run
+
+Windows guide for managers and reviewers who received **`ICEA-Lion-Testcase-Review-share.zip`**.
+
+See **[START-HERE.md](../START-HERE.md)** (same content, at the ZIP root).
 
 Use this checklist when sharing the tool for review. No code changes required.
 

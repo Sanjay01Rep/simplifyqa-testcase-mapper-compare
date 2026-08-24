@@ -1,6 +1,6 @@
 {
   "name": "simplifyqa-testcase-mapper-compare",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "ICEA LION QA tool: map client testcases to SimplifyQA Excel and compare Gen UG vs Life UG workbooks",
   "main": "server.js",
   "repository": {
@@ -8,10 +8,11 @@
     "url": "https://github.com/Sanjay01Rep/simplifyqa-testcase-mapper-compare.git"
   },
   "scripts": {
-    "prestart": "node scripts/free-port.js",
+    "prestart": "node scripts/sync-app-version.js && node scripts/free-port.js",
     "start": "node server.js",
-    "start:window": "cmd /c start \"ICEA LION UI\" cmd /k \"node scripts/free-port.js && node server.js\"",
-    "ui": "node scripts/free-port.js && node server.js",
+    "version:sync": "node scripts/sync-app-version.js",
+    "start:window": "cmd /c start \"ICEA LION UI\" cmd /k \"node scripts/sync-app-version.js && node scripts/free-port.js && node server.js\"",
+    "ui": "node scripts/sync-app-version.js && node scripts/free-port.js && node server.js",
     "map": "node map_to_simplifyqa.js",
     "map:all": "node map_to_simplifyqa.js --all",
     "test": "node test/e2e.js"
