@@ -152,13 +152,24 @@ function writeVersion(version) {
 
   if (fs.existsSync(INDEX_PATH)) {
     const html = fs.readFileSync(INDEX_PATH, "utf8");
-    fs.writeFileSync(
-      INDEX_PATH,
-      html.replace(
-        /(id="appVersion"[^>]*>)v?\d+\.\d+\.\d+/,
-        `$1v${version}`
-      )
+    let next = html.replace(
+      /(id="appVersion"[^>]*>)v?\d+\.\d+\.\d+/,
+      `$1v${version}`
     );
+    next = next.replace(
+      /(\/(?:app\.js|styles\.css)\?v=)\d+\.\d+\.\d+/g,
+      `$1${version}`
+    );
+    // Ensure cache-bust query exists even if the file had a bare script src.
+    next = next.replace(
+      /(<script\s+src="\/app\.js)(")/,
+      `$1?v=${version}$2`
+    );
+    next = next.replace(
+      /(<link\s+rel="stylesheet"\s+href="\/styles\.css)(")/,
+      `$1?v=${version}$2`
+    );
+    fs.writeFileSync(INDEX_PATH, next);
   }
 
   if (fs.existsSync(START_HERE_PATH)) {

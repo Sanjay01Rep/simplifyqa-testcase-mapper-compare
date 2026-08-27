@@ -7,6 +7,7 @@
 
 Module=Investment Management
 Entity=Life UG
+EntityCustom=
 Versions=v1.0
 TestcaseType=WEB
 
@@ -15,6 +16,9 @@ CompareModule=Accounts Payable
 CompareEntityCommon=Life UG, Gen UG
 CompareEntityUniqueA=Gen UG
 CompareEntityUniqueB=Life UG
+CompareEntityCustomCommon=
+CompareEntityCustomUniqueA=
+CompareEntityCustomUniqueB=
 CompareKenya=
 
 CompareModuleCustom=

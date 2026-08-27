@@ -182,8 +182,57 @@ async function main() {
       ok("download generated xlsx", false, "no download url");
     }
 
+    const customEntFd = new FormData();
+    customEntFd.append("existingClient", "FA Payroll.xlsx");
+    customEntFd.append("module", "FA Payroll");
+    customEntFd.append("entityCustom", "Life KE");
+    customEntFd.append("versions", "v1.0");
+    customEntFd.append("testcaseType", "WEB");
+    const customEnt = await jsonReq(base, "/api/review", { method: "POST", body: customEntFd });
+    ok(
+      "custom entity accepted on map review",
+      customEnt.data &&
+        customEnt.data.ok === true &&
+        customEnt.data.summary &&
+        customEnt.data.summary.entity === "Life KE",
+      customEnt.data && customEnt.data.message
+    );
+
+    const logoRes = await fetch(base + "/logo/ICEA%20Lion.png");
+    ok("ICEA logo is served", logoRes.ok && Number(logoRes.headers.get("content-length") || 0) > 100);
+
+    const twoSheetMissing = new FormData();
+    twoSheetMissing.append("existingClient", "General UG/Credit Control GE UG-reviewed.xlsx");
+    twoSheetMissing.append("module", "Credit Control");
+    twoSheetMissing.append("entity", "Gen UG");
+    twoSheetMissing.append("versions", "v1.0");
+    twoSheetMissing.append("testcaseType", "WEB");
+    const twoSheetNeed = await jsonReq(base, "/api/generate", {
+      method: "POST",
+      body: twoSheetMissing,
+    });
+    ok(
+      "2-sheet map requires sheet choice",
+      twoSheetNeed.data &&
+        twoSheetNeed.data.ok === false &&
+        /choose which sheet/i.test(twoSheetNeed.data.message || "")
+    );
+
+    const sheetsFd = new FormData();
+    sheetsFd.append("existingClient", "TZ General/Tax Managment TZ (1).xlsx");
+    const sheetsRes = await jsonReq(base, "/api/client-sheets", { method: "POST", body: sheetsFd });
+    ok(
+      "client-sheets lists TZ Tax sheets",
+      sheetsRes.data &&
+        sheetsRes.data.ok === true &&
+        Array.isArray(sheetsRes.data.sheets) &&
+        sheetsRes.data.sheets.includes("Tax Management") &&
+        sheetsRes.data.needsChoice === true
+    );
+
     const twoSheetGenFd = new FormData();
     twoSheetGenFd.append("existingClient", "General UG/Credit Control GE UG-reviewed.xlsx");
+    twoSheetGenFd.append("clientSheet", "UG");
     twoSheetGenFd.append("module", "Credit Control");
     twoSheetGenFd.append("entity", "Gen UG");
     twoSheetGenFd.append("versions", "v1.0");
@@ -203,15 +252,29 @@ async function main() {
       const outWb = XLSX.read(outBuf, { type: "buffer" });
       ok("mapped output keeps single template sheet", outWb.SheetNames.length === 1);
       ok(
-      "summary reports two sheets selected",
+        "summary reports chosen sheet only",
         twoSheetGen.data.summary &&
-          twoSheetGen.data.summary.sheetName === "Kenya, UG" &&
-          (twoSheetGen.data.summary.issues || []).some((i) => i.type === "SHEETS_AUTO_SELECTED")
+          twoSheetGen.data.summary.sheetName === "UG" &&
+          (twoSheetGen.data.summary.issues || []).some((i) => i.type === "SHEET_SELECTED")
       );
     } else {
       ok("mapped output keeps single template sheet", false, "no download url");
-      ok("summary reports second sheet selected", false);
+      ok("summary reports chosen sheet only", false);
     }
+
+    const tzFd = new FormData();
+    tzFd.append("existingClient", "TZ General/Tax Managment TZ (1).xlsx");
+    tzFd.append("clientSheet", "Tax Management");
+    tzFd.append("module", "Tax Management");
+    tzFd.append("entity", "Gen TZ");
+    tzFd.append("versions", "v1.0");
+    tzFd.append("testcaseType", "WEB");
+    const tzMap = await jsonReq(base, "/api/review", { method: "POST", body: tzFd });
+    ok(
+      "TZ Tax Management sheet maps 42 TCs",
+      tzMap.data && tzMap.data.ok === true && tzMap.data.summary && tzMap.data.summary.mappedTcCount === 42,
+      tzMap.data && tzMap.data.summary ? String(tzMap.data.summary.mappedTcCount) : tzMap.data && tzMap.data.message
+    );
 
     const mapped = await mapFromBuffers({
       clientFileName: "Payroll UG Gen.xlsx",
@@ -577,6 +640,10 @@ async function main() {
         html.includes('id="cmpMapperHeader"') &&
         html.includes('id="serverBot"') &&
         html.includes('id="entityChecks"') &&
+        html.includes('id="entityCustom"') &&
+        html.includes('id="clientSheet"') &&
+        html.includes('id="cmpSheetA"') &&
+        html.includes('id="cmpSheetB"') &&
         html.includes("compare-view") &&
         html.includes('id="cmpStep1"') &&
         html.includes('id="cmpStep2"') &&
@@ -589,9 +656,36 @@ async function main() {
         html.includes('id="cmpEntityCommon"') &&
         html.includes('id="cmpEntityUniqueA"') &&
         html.includes('id="cmpEntityUniqueB"') &&
+        html.includes('id="cmpEntityCustomCommon"') &&
+        html.includes('id="cmpEntityCustomUniqueA"') &&
+        html.includes('id="cmpEntityCustomUniqueB"') &&
         html.includes('id="cmpSaveMapBtn"')
     );
+    ok(
+      "header logos from Icea Reporter are present",
+      html.includes("/logo/ICEA%20Lion.png") &&
+        html.includes("/logo/Simplify-icon.png") &&
+        html.includes('id="logoLeft"') &&
+        html.includes('id="logoRight"') &&
+        !html.includes('id="logoRightUi"')
+    );
+    ok(
+      "reset buttons on map and compare",
+      html.includes('id="resetMapBtn"') && html.includes('id="resetCompareBtn"')
+    );
+    ok(
+      "map entity has no default selection",
+      html.includes('id="entityChecks"') &&
+        !/<div[^>]*id="entityChecks"[^>]*>([\s\S]*?)<\/div>/.exec(html)[1].includes("checked")
+    );
     ok("compare shares validation and properties", html.includes('id="issueList"') && html.includes('id="propsDetails"'));
+
+    const hist = await jsonReq(base, "/api/history");
+    ok(
+      "history is capped to 8 runs",
+      hist.data && Array.isArray(hist.data.runs) && hist.data.runs.length <= 8,
+      hist.data && hist.data.runs ? String(hist.data.runs.length) : ""
+    );
 
     const cmpMissing = new FormData();
     cmpMissing.append("existingClientA", "Tax managemnt UG.xlsx");
@@ -729,8 +823,26 @@ async function main() {
       ok("kenya prereq column present on common", false);
     }
 
+    const apNeedSheet = new FormData();
+    apNeedSheet.append("existingClientA", "General UG/Account Payables GE UG-Review.xlsx");
+    apNeedSheet.append("existingClientB", "Life UG/Account payables Life UG.xlsx");
+    apNeedSheet.append("module", "Accounts Payable");
+    apNeedSheet.append("entityCommon", "Gen UG");
+    apNeedSheet.append("entityUniqueA", "Gen UG");
+    apNeedSheet.append("entityUniqueB", "Life UG");
+    apNeedSheet.append("versions", "v1.0");
+    apNeedSheet.append("testcaseType", "WEB");
+    const apNeed = await jsonReq(base, "/api/compare-review", { method: "POST", body: apNeedSheet });
+    ok(
+      "compare multi-sheet Excel A requires sheet choice",
+      apNeed.data &&
+        apNeed.data.ok === false &&
+        /Excel A has .* sheets/i.test(apNeed.data.message || "")
+    );
+
     const apFd = new FormData();
     apFd.append("existingClientA", "General UG/Account Payables GE UG-Review.xlsx");
+    apFd.append("clientSheetA", "UG");
     apFd.append("existingClientB", "Life UG/Account payables Life UG.xlsx");
     apFd.append("existingKenya", "Kenya doc/Account paybles.xlsx");
     apFd.append("module", "Accounts Payable");
@@ -826,6 +938,139 @@ async function main() {
       ok("all-common compare has zero unmatched counts", false);
       ok("all-common compare writes Common sheet only", false);
     }
+
+    // --- Map EP Module Tests ---
+    const epSampleSummaryPath = path.join(
+      ROOT,
+      "Execution Plan Sample file",
+      "TestCases_Financial Management System - Uganda_2782026(Summary).xlsx"
+    );
+    const hasEpSample = fs.existsSync(epSampleSummaryPath);
+    ok("EP sample summary file exists", hasEpSample);
+
+    // Test EP Review API
+    const epReviewFd = new FormData();
+    if (hasEpSample) {
+      const summaryBuf = fs.readFileSync(epSampleSummaryPath);
+      epReviewFd.append(
+        "summary",
+        new Blob([summaryBuf], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        path.basename(epSampleSummaryPath)
+      );
+    }
+    epReviewFd.append("module", "Accounts Payable");
+    epReviewFd.append("entity", "Life UG");
+    epReviewFd.append("version", "v1.0");
+    epReviewFd.append("executionType", "Manual");
+    epReviewFd.append("assignedDate", "08/20/1996");
+    epReviewFd.append("dateFormat", "mm/dd/yyyy");
+    epReviewFd.append("assigneeEmail", "qa.tester@icealion.com");
+
+    const epReviewRes = await jsonReq(base, "/api/ep/review", { method: "POST", body: epReviewFd });
+    ok(
+      "EP review returns mapped test cases without saving",
+      epReviewRes.data &&
+        epReviewRes.data.ok === true &&
+        epReviewRes.data.summary &&
+        epReviewRes.data.summary.testcaseCount > 0 &&
+        epReviewRes.data.preview &&
+        epReviewRes.data.preview.rows.length > 1
+    );
+
+    // Test EP Generate API with date format 2 (dd/mm/yyyy)
+    const epGenFd = new FormData();
+    if (hasEpSample) {
+      const summaryBuf = fs.readFileSync(epSampleSummaryPath);
+      epGenFd.append(
+        "summary",
+        new Blob([summaryBuf], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        path.basename(epSampleSummaryPath)
+      );
+    }
+    epGenFd.append("module", "Accounts Payable");
+    epGenFd.append("entity", "Life UG");
+    epGenFd.append("version", "v2.0");
+    epGenFd.append("executionType", "Manual");
+    epGenFd.append("assignedDate", "27/08/2026");
+    epGenFd.append("dateFormat", "dd/mm/yyyy");
+    epGenFd.append("assigneeEmail", "lead.tester@icealion.com");
+
+    const epGenRes = await jsonReq(base, "/api/ep/generate", { method: "POST", body: epGenFd });
+    ok(
+      "EP generate returns download links and summary",
+      epGenRes.data &&
+        epGenRes.data.ok === true &&
+        epGenRes.data.download &&
+        epGenRes.data.download.excel &&
+        epGenRes.data.summary.sheetName === "Accounts Payable Life UG"
+    );
+
+    if (epGenRes.data && epGenRes.data.download && epGenRes.data.download.excel) {
+      const epDl = await fetch(base + epGenRes.data.download.excel);
+      const epBuf = Buffer.from(await epDl.arrayBuffer());
+      const epWb = XLSX.read(epBuf, { type: "buffer" });
+      const sheetName = epWb.SheetNames[0];
+      ok("EP Excel has sheet named Module+Entity", sheetName === "Accounts Payable Life UG");
+      const epRows = XLSX.utils.sheet_to_json(epWb.Sheets[sheetName], { header: 1 });
+      ok(
+        "EP Excel has correct 6 standard headers",
+        JSON.stringify(epRows[0]) ===
+          JSON.stringify([
+            "Testcase ID*",
+            "Testcase Name",
+            "Testcase Version*",
+            "Execution Type*",
+            "Assigned Date",
+            "Assignee Email ID*",
+          ])
+      );
+      ok("EP Excel row 1 has TC ID and Name", /^TC-\d+$/.test(epRows[1][0]) && Boolean(epRows[1][1]));
+      ok("EP Excel has version override applied", epRows[1][2] === "v2.0");
+      ok("EP Excel has assigned date formatted", epRows[1][4] === "27/08/2026");
+      ok("EP Excel has assignee email mapped", epRows[1][5] === "lead.tester@icealion.com");
+      // Header + 32 testcase rows = 33 rows total (ensures strict module/entity filtering)
+      ok("EP Excel only includes specified module and entity test cases", epRows.length === 33);
+    }
+
+    // Test Invalid Date Format rejection
+    const epBadDateFd = new FormData();
+    if (hasEpSample) {
+      const summaryBuf = fs.readFileSync(epSampleSummaryPath);
+      epBadDateFd.append(
+        "summary",
+        new Blob([summaryBuf], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        path.basename(epSampleSummaryPath)
+      );
+    }
+    epBadDateFd.append("assignedDate", "not-a-date");
+    const epBadDateRes = await jsonReq(base, "/api/ep/review", { method: "POST", body: epBadDateFd });
+    ok(
+      "EP rejects invalid date string",
+      epBadDateRes.data && epBadDateRes.data.ok === false && /Invalid date/i.test(epBadDateRes.data.message || "")
+    );
+
+    // Test Auth Token API (/api/auth/status & /api/auth/token)
+    const authStatusRes = await jsonReq(base, "/api/auth/status");
+    ok(
+      "auth status returns JSON object",
+      authStatusRes.data && typeof authStatusRes.data.present === "boolean"
+    );
+
+    const saveTokenRes = await jsonReq(base, "/api/auth/token", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE5OTk5OTk5OTl9.testsignature" }),
+    });
+    ok(
+      "save auth token updates status and message",
+      saveTokenRes.data && saveTokenRes.data.ok === true && saveTokenRes.data.present === true
+    );
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

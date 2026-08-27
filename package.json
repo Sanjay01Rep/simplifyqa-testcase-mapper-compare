@@ -1,6 +1,6 @@
 {
   "name": "simplifyqa-testcase-mapper-compare",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "ICEA LION QA tool: map client testcases to SimplifyQA Excel and compare Gen UG vs Life UG workbooks",
   "main": "server.js",
   "repository": {

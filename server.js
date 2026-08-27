@@ -19,10 +19,25 @@ const {
   writeLog,
   isXlsxFileName,
   listMapperHeaders,
+  listWorkbookSheets,
 } = require("./lib/mapper");
 const { ENTITIES, MODULES } = require("./lib/options");
 const { compareClientDocs, writeCompareLog } = require("./lib/compare");
-const { loadProjectEnv } = require("./lib/loadEnv");
+const {
+  EP_HEADER,
+  SUPPORTED_DATE_FORMATS,
+  validateAndFormatDate,
+  sanitizeSheetName,
+  extractTestcasesFromSummary,
+  fetchTestcasesFromSimplifyQa,
+  buildEpWorkbook,
+} = require("./lib/epMapper");
+const {
+  loadProjectEnv,
+  getBearerToken,
+  getTokenStatus,
+  saveBearerToken,
+} = require("./lib/loadEnv");
 
 const ROOT = __dirname;
 loadProjectEnv(ROOT);
@@ -35,6 +50,7 @@ const CLIENT_DIR = path.join(ROOT, "Client doc");
 const KENYA_DIR = path.join(ROOT, "Kenya doc");
 const KENYA_ORIGINAL_DIR = path.join(ROOT, "Kenya orginial testcase");
 const KENYA_DIRS = [KENYA_DIR, KENYA_ORIGINAL_DIR];
+const EP_SAMPLE_DIR = path.join(ROOT, "Execution Plan Sample file");
 const XLSX_ONLY_MSG = "Only .xlsx files are supported. Please choose a .xlsx workbook.";
 const OUT_DIR = path.join(ROOT, "Generated Excel file");
 const LOG_DIR = path.join(OUT_DIR, "logs");
@@ -57,7 +73,7 @@ function ensureMappingProperties() {
   console.log(`Created mapping.properties from mapping.properties.example`);
 }
 ensureMappingProperties();
-const HISTORY_LIMIT = 20;
+const HISTORY_LIMIT = 8;
 
 const app = express();
 const upload = multer({
@@ -137,11 +153,36 @@ function listKenyaFiles() {
   return out;
 }
 
+function listEpSampleFiles() {
+  if (!fs.existsSync(EP_SAMPLE_DIR)) return [];
+  return listXlsxUnder(EP_SAMPLE_DIR, ROOT);
+}
+
+function resolveEpSampleRelative(relative) {
+  const abs = safeResolveUnder(ROOT, relative);
+  if (abs !== EP_SAMPLE_DIR && !abs.startsWith(EP_SAMPLE_DIR + path.sep)) {
+    const err = new Error("Sample file must be inside Execution Plan Sample file folder.");
+    err.status = 400;
+    throw err;
+  }
+  return abs;
+}
+
 function readHistory() {
   try {
     if (!fs.existsSync(HISTORY_PATH)) return [];
     const raw = JSON.parse(fs.readFileSync(HISTORY_PATH, "utf8"));
-    return Array.isArray(raw) ? raw : [];
+    const list = Array.isArray(raw) ? raw : [];
+    if (list.length > HISTORY_LIMIT) {
+      const trimmed = list.slice(0, HISTORY_LIMIT);
+      try {
+        fs.writeFileSync(HISTORY_PATH, JSON.stringify(trimmed, null, 2), "utf8");
+      } catch {
+        /* keep serving the trimmed list even if write fails */
+      }
+      return trimmed;
+    }
+    return list;
   } catch {
     return [];
   }
@@ -187,9 +228,12 @@ function configFromRequest(req, clientFileName) {
   const resolved = resolveJobConfig(clientFileName, jobs, props);
   const body = req.body || {};
   const customModule = String(body.moduleCustom || "").trim();
-  const entityParts = Array.isArray(body.entity)
-    ? body.entity
-    : String(body.entity || "").split(/[,;]/);
+  const customEntity = String(body.entityCustom || "").trim();
+  const entityParts = customEntity
+    ? customEntity.split(/[,;]/)
+    : Array.isArray(body.entity)
+      ? body.entity
+      : String(body.entity || "").split(/[,;]/);
   const entityList = [
     ...new Set(entityParts.map((v) => String(v || "").trim()).filter(Boolean)),
   ];
@@ -204,7 +248,14 @@ function configFromRequest(req, clientFileName) {
 function saveUpload(dir, file) {
   ensureDir(dir);
   const dest = path.join(dir, path.basename(file.originalname));
-  fs.writeFileSync(dest, file.buffer);
+  try {
+    fs.writeFileSync(dest, file.buffer);
+  } catch (err) {
+    if (err && (err.code === "EBUSY" || err.code === "EPERM")) {
+      return dest;
+    }
+    throw err;
+  }
   return dest;
 }
 
@@ -267,28 +318,29 @@ async function runMapping(req, { generate }) {
   }
 
   const mapperHeader = String((req.body && req.body.mapperHeader) || "").trim();
+  const clientSheet = String((req.body && req.body.clientSheet) || "").trim();
+  const workbookSheets = listWorkbookSheets(clientBuffer);
+  if (workbookSheets.length >= 2 && !clientSheet) {
+    const err = new Error(
+      `This client file has ${workbookSheets.length} sheets (${workbookSheets.join(
+        ", "
+      )}). Choose which sheet to map.`
+    );
+    err.status = 400;
+    throw err;
+  }
 
   const config = configFromRequest(req, clientFileName);
+  if (clientSheet) config.clientSheet = clientSheet;
   if (!config.Module) {
     const err = new Error("Select a Module (or type a custom module).");
     err.status = 400;
     throw err;
   }
   if (!config.Entity) {
-    const err = new Error("Select at least one Entity (Life UG, Gen UG, or Gen TZ).");
+    const err = new Error("Select an Entity, or type a custom entity.");
     err.status = 400;
     throw err;
-  }
-  {
-    const entityList = config.Entity.split(",").map((v) => v.trim()).filter(Boolean);
-    const invalid = entityList.filter((e) => !ENTITIES.includes(e));
-    if (invalid.length) {
-      const err = new Error(
-        `Invalid Entity: ${invalid.join(", ")}. Must be one of: ${ENTITIES.join(", ")}.`
-      );
-      err.status = 400;
-      throw err;
-    }
   }
 
   const mapped = await mapFromBuffers({
@@ -366,6 +418,9 @@ app.get("/api/config", (_req, res) => {
     jobs,
     clientFiles: listClientFiles(),
     kenyaFiles: listKenyaFiles(),
+    epSampleFiles: listEpSampleFiles(),
+    hasEnvToken: Boolean(getBearerToken(ROOT)),
+    supportedDateFormats: SUPPORTED_DATE_FORMATS,
     xlsxOnly: true,
     xlsxMessage: XLSX_ONLY_MSG,
     modules: MODULES,
@@ -385,6 +440,34 @@ app.post("/api/properties", (req, res) => {
     res.json({ ok: true, props: loadProperties(PROPS_PATH) });
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.get("/api/auth/status", (_req, res) => {
+  try {
+    res.json({ ok: true, ...getTokenStatus(ROOT) });
+  } catch (err) {
+    res.status(400).json({
+      ok: false,
+      message: err.message || String(err),
+    });
+  }
+});
+
+app.put("/api/auth/token", (req, res) => {
+  try {
+    const token = req.body && typeof req.body.token === "string" ? req.body.token : "";
+    const status = saveBearerToken(token, ROOT);
+    res.json({
+      ok: true,
+      message: "Bearer token saved to .env. Active for SimplifyQA Live calls (no restart needed).",
+      ...status,
+    });
+  } catch (err) {
+    res.status(err.status || 400).json({
+      ok: false,
+      message: err.message || String(err),
+    });
   }
 });
 
@@ -498,15 +581,7 @@ function parseEntityField(raw, label) {
         .split(/[,;]/);
   const list = [...new Set(parts.map((v) => String(v || "").trim()).filter(Boolean))];
   if (!list.length) {
-    const err = new Error(`Select at least one Entity for ${label}.`);
-    err.status = 400;
-    throw err;
-  }
-  const invalid = list.filter((e) => !ENTITIES.includes(e));
-  if (invalid.length) {
-    const err = new Error(
-      `Invalid Entity for ${label}: ${invalid.join(", ")}. Must be one of: ${ENTITIES.join(", ")}.`
-    );
+    const err = new Error(`Select or type Entity for ${label}.`);
     err.status = 400;
     throw err;
   }
@@ -523,15 +598,15 @@ async function runCompare(req, { generate }) {
   const moduleName = customModule || String(body.module || "").trim();
   const fallbackEntity = String(body.entity || "").trim();
   const entityCommon = parseEntityField(
-    body.entityCommon || fallbackEntity,
+    body.entityCustomCommon || body.entityCommon || fallbackEntity,
     "Common sheet"
   );
   const entityUniqueA = parseEntityField(
-    body.entityUniqueA || fallbackEntity,
+    body.entityCustomUniqueA || body.entityUniqueA || fallbackEntity,
     "unique Excel A sheet"
   );
   const entityUniqueB = parseEntityField(
-    body.entityUniqueB || fallbackEntity,
+    body.entityCustomUniqueB || body.entityUniqueB || fallbackEntity,
     "unique Excel B sheet"
   );
   const versions = String(body.versions || "v1.0").trim() || "v1.0";
@@ -557,6 +632,24 @@ async function runCompare(req, { generate }) {
   }
 
   const mapperHeader = String((body.mapperHeader) || "").trim();
+  const clientSheetA = String(body.clientSheetA || "").trim();
+  const clientSheetB = String(body.clientSheetB || "").trim();
+  const sheetsA = listWorkbookSheets(sideA.buffer);
+  const sheetsB = listWorkbookSheets(sideB.buffer);
+  if (sheetsA.length >= 2 && !clientSheetA) {
+    const err = new Error(
+      `Excel A has ${sheetsA.length} sheets (${sheetsA.join(", ")}). Choose which sheet to compare.`
+    );
+    err.status = 400;
+    throw err;
+  }
+  if (sheetsB.length >= 2 && !clientSheetB) {
+    const err = new Error(
+      `Excel B has ${sheetsB.length} sheets (${sheetsB.join(", ")}). Choose which sheet to compare.`
+    );
+    err.status = 400;
+    throw err;
+  }
 
   const compared = await compareClientDocs({
     fileAName: sideA.fileName,
@@ -572,6 +665,8 @@ async function runCompare(req, { generate }) {
     kenyaFileName,
     kenyaBuffer,
     mapperHeader,
+    clientSheetA: clientSheetA || (sheetsA.length === 1 ? sheetsA[0] : ""),
+    clientSheetB: clientSheetB || (sheetsB.length === 1 ? sheetsB[0] : ""),
   });
 
   let outName = "";
@@ -645,6 +740,41 @@ app.post("/api/compare", compareUpload(), async (req, res) => {
 });
 
 app.post(
+  "/api/client-sheets",
+  withMulter(upload.single("client")),
+  (req, res) => {
+    try {
+      const uploaded = req.file || null;
+      const existingClient = String((req.body && req.body.existingClient) || "").trim();
+      let fileName = "";
+      let buffer = null;
+      if (uploaded) {
+        assertExcelUpload(uploaded, "Client document");
+        fileName = uploaded.originalname;
+        buffer = uploaded.buffer;
+      } else if (existingClient) {
+        const abs = safeResolveUnder(CLIENT_DIR, existingClient);
+        fileName = path.basename(abs);
+        buffer = fs.readFileSync(abs);
+      } else {
+        const err = new Error("Upload a client document or pick an existing Client doc.");
+        err.status = 400;
+        throw err;
+      }
+      const sheets = listWorkbookSheets(buffer);
+      res.json({
+        ok: true,
+        fileName,
+        sheets,
+        needsChoice: sheets.length >= 2,
+      });
+    } catch (err) {
+      res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
   "/api/mapper-headers",
   withMulter(upload.single("kenya")),
   async (req, res) => {
@@ -676,6 +806,209 @@ app.post(
     }
   }
 );
+
+async function runEpMapping(req, { generate }) {
+  const body = req.body || {};
+  const mode = String(body.mode || "upload").toLowerCase();
+  const customModule = String(body.moduleCustom || "").trim();
+  const moduleName = customModule || String(body.module || "").trim();
+  const customEntity = String(body.entityCustom || "").trim();
+  const entityName = customEntity || String(body.entity || "").trim();
+  const version = String(body.version || "v1.0").trim() || "v1.0";
+  const executionType = String(body.executionType || "Manual").trim() || "Manual";
+  const assignedDate = String(body.assignedDate || "").trim();
+  const dateFormat = String(body.dateFormat || "mm/dd/yyyy").trim();
+  const assigneeEmail = String(body.assigneeEmail || "").trim();
+  const projectId = Number(body.projectId) || 5;
+
+  let testcases = [];
+  let sourceLabel = "";
+
+  if (assignedDate) {
+    const dateValidation = validateAndFormatDate(assignedDate, dateFormat);
+    if (!dateValidation.valid) {
+      const err = new Error(dateValidation.error);
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  if (mode === "live") {
+    const token = String(body.token || getBearerToken(ROOT) || "").trim();
+    if (!token) {
+      const err = new Error(
+        "SimplifyQA Bearer token is required for live API export (provide token or set SIMPLIFYQA_BEARER_TOKEN in .env)."
+      );
+      err.status = 400;
+      throw err;
+    }
+    const fetched = await fetchTestcasesFromSimplifyQa({
+      token,
+      projectId,
+      moduleName,
+      entity: entityName,
+    });
+    testcases = fetched.testcases;
+    sourceLabel = `SimplifyQA Live API (Project ${projectId})`;
+  } else {
+    const uploaded = req.file || (req.files && req.files.summary && req.files.summary[0]) || null;
+    const existingSummary = String(body.existingSummary || "").trim();
+    let buffer = null;
+    let fileName = "";
+
+    if (uploaded) {
+      assertExcelUpload(uploaded, "Summary Excel");
+      fileName = uploaded.originalname;
+      buffer = uploaded.buffer;
+      saveUpload(EP_SAMPLE_DIR, uploaded);
+    } else if (existingSummary) {
+      let abs;
+      if (fs.existsSync(safeResolveUnder(ROOT, existingSummary))) {
+        abs = safeResolveUnder(ROOT, existingSummary);
+      } else {
+        abs = resolveEpSampleRelative(existingSummary);
+      }
+      fileName = path.basename(abs);
+      buffer = fs.readFileSync(abs);
+    } else {
+      const err = new Error(
+        "Upload a SimplifyQA summary export file (.xlsx) or select an existing sample file, or switch to Live API mode."
+      );
+      err.status = 400;
+      throw err;
+    }
+
+    const extracted = extractTestcasesFromSummary(buffer, {
+      module: moduleName,
+      entity: entityName,
+      sheet: body.summarySheet,
+    });
+    testcases = extracted.testcases;
+    sourceLabel = fileName;
+  }
+
+  if (!testcases.length) {
+    const filterDesc = [moduleName ? `Module: ${moduleName}` : null, entityName ? `Entity: ${entityName}` : null]
+      .filter(Boolean)
+      .join(", ");
+    const err = new Error(
+      `No test cases found${filterDesc ? ` matching ${filterDesc}` : ""}. Ensure the export contains valid test case rows.`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const result = buildEpWorkbook({
+    testcases,
+    moduleName,
+    entityName,
+    version,
+    executionType,
+    assignedDate,
+    assigneeEmail,
+    dateFormat,
+  });
+
+  if (generate) {
+    const stamp = nowStamp();
+    const cleanMod = safeBaseName(moduleName || "Module");
+    const cleanEnt = safeBaseName(entityName || "Entity");
+    const outName = `${cleanMod}_${cleanEnt}_EP_${stamp}.xlsx`;
+    const logName = `${cleanMod}_${cleanEnt}_ep_${stamp}.log`;
+    ensureDir(OUT_DIR);
+    ensureDir(LOG_DIR);
+    fs.writeFileSync(path.join(OUT_DIR, outName), result.buffer);
+
+    const logLines = [
+      `ICEA LION Execution Plan (EP) Mapping Log`,
+      `=========================================`,
+      `Date/Time        : ${new Date().toISOString()}`,
+      `Source           : ${sourceLabel}`,
+      `Module           : ${moduleName || "(all)"}`,
+      `Entity           : ${entityName || "(all)"}`,
+      `Output Sheet     : ${result.sheetName}`,
+      `Total TCs Mapped : ${testcases.length}`,
+      `Version Default  : ${version}`,
+      `Execution Type   : ${executionType}`,
+      `Assigned Date    : ${result.summary.assignedDate || "(none)"}`,
+      `Assignee Email   : ${assigneeEmail || "(none)"}`,
+      `Generated File   : ${outName}`,
+      ``,
+      `Mapped Test Cases:`,
+      ...testcases.map(
+        (t, idx) => `  ${idx + 1}. [${t.id}] ${t.name} (Module: ${t.module || "-"}, Entity: ${t.entity || "-"})`
+      ),
+    ];
+    fs.writeFileSync(path.join(LOG_DIR, logName), logLines.join("\n"), "utf8");
+
+    pushHistory({
+      at: new Date().toISOString(),
+      clientFile: `${sourceLabel} → EP Plan`,
+      kenyaFile: null,
+      outName,
+      logName,
+      tcs: testcases.length,
+      steps: testcases.length,
+      issues: 0,
+      kenyaMatched: 0,
+      pass: true,
+      kind: "ep",
+    });
+
+    return {
+      ok: true,
+      mode,
+      download: {
+        excel: `/api/download/excel?file=${encodeURIComponent(outName)}`,
+        log: `/api/download/log?file=${encodeURIComponent(logName)}`,
+      },
+      summary: {
+        ...result.summary,
+        outName,
+        logName,
+        sourceLabel,
+      },
+      preview: result.preview,
+    };
+  }
+
+  return {
+    ok: true,
+    mode,
+    summary: {
+      ...result.summary,
+      sourceLabel,
+    },
+    preview: result.preview,
+  };
+}
+
+app.get("/api/ep/sample-files", (_req, res) => {
+  res.json({
+    ok: true,
+    sampleFiles: listEpSampleFiles(),
+    supportedDateFormats: SUPPORTED_DATE_FORMATS,
+    hasEnvToken: Boolean(getBearerToken(ROOT)),
+  });
+});
+
+app.post("/api/ep/review", withMulter(upload.single("summary")), async (req, res) => {
+  try {
+    const result = await runEpMapping(req, { generate: false });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
+
+app.post("/api/ep/generate", withMulter(upload.single("summary")), async (req, res) => {
+  try {
+    const result = await runEpMapping(req, { generate: true });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, message: err.message || String(err) });
+  }
+});
 
 app.get("/api/download/excel", (req, res) => {
   try {

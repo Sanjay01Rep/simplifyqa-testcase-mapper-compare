@@ -4,19 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ICEA LION Testcase Review</title>
+    <link rel="icon" type="image/png" href="/logo/Simplify.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=1.2.4" />
   </head>
   <body>
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand-lockup">
-          <div class="brand-mark" aria-hidden="true">IL</div>
+          <img id="logoLeft" class="logo icea" src="/logo/ICEA%20Lion.png" alt="ICEA LION" />
           <div class="brand-text">
             <h1>ICEA LION Testcase Review</h1>
             <p>Review client cases, map Pre-Requisites from a mapper file, export SimplifyQA Excel</p>
@@ -33,7 +34,8 @@
             <span class="server-bot-icon" aria-hidden="true">🤖</span>
             <span class="server-bot-text" id="serverBotText">Checking…</span>
           </button>
-          <span class="version-badge" id="appVersion" title="App version">v1.1.0</span>
+          <span class="version-badge" id="appVersion" title="App version">v1.2.0</span>
+          <img id="logoRight" class="logo simplify" src="/logo/Simplify-icon.png" alt="" />
           <span class="simplify-label">Simplify3x</span>
         </div>
       </div>
@@ -47,6 +49,9 @@
         <button type="button" class="module-tab" id="tabCompare" data-view="compare" role="tab" aria-selected="false">
           Compare, Map &amp; Report
         </button>
+        <button type="button" class="module-tab" id="tabEp" data-view="ep" role="tab" aria-selected="false">
+          Map EP
+        </button>
       </nav>
 
       <div id="validateBanner" class="validate-banner hidden" role="alert"></div>
@@ -57,12 +62,15 @@
         <section class="panel" aria-labelledby="run-heading">
           <div class="panel-head">
             <h2 id="run-heading">Map to SimplifyQA</h2>
-            <button type="button" class="btn ghost" id="reloadFormBtn">
-              Load from properties
-            </button>
+            <div class="btn-row">
+              <button type="button" class="btn ghost" id="resetMapBtn">Reset</button>
+              <button type="button" class="btn ghost" id="reloadFormBtn">
+                Load from properties
+              </button>
+            </div>
           </div>
 
-          <form id="runForm" class="form">
+          <form id="runForm" class="form" autocomplete="off">
             <div id="uploadNotice" class="validate-banner hidden" role="alert"></div>
             <div id="serverBanner" class="validate-banner hidden" role="status"></div>
 
@@ -76,6 +84,13 @@
                 <select id="existingClient">
                   <option value="">Or pick existing Client doc</option>
                 </select>
+                <label class="field mapper-header-field hidden" id="clientSheetField">
+                  <span>Client sheet *</span>
+                  <select id="clientSheet" name="clientSheet">
+                    <option value="">-- Choose sheet --</option>
+                  </select>
+                </label>
+                <p class="hint hidden" id="clientSheetHint">This file has more than one sheet. Choose the sheet to map.</p>
               </div>
               <div class="field">
                 <span>Mapper file <em class="optional-tag">(optional)</em></span>
@@ -109,11 +124,18 @@
               </div>
             </div>
 
-            <div class="grid-3">
+            <div class="grid-2">
               <label class="field">
                 <span>Custom module</span>
                 <input id="moduleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
               </label>
+              <label class="field">
+                <span>Custom entity</span>
+                <input id="entityCustom" name="entityCustom" type="text" placeholder="Overrides checkboxes (comma-separated OK)" autocomplete="off" />
+              </label>
+            </div>
+
+            <div class="grid-2">
               <label class="field">
                 <span>Versions *</span>
                 <input id="versions" name="versions" type="text" value="v1.0" />
@@ -158,6 +180,7 @@
             <div class="panel-head">
               <h2 id="compare-heading">Compare, Map &amp; Report</h2>
               <div class="btn-row">
+                <button type="button" class="btn ghost" id="resetCompareBtn">Reset</button>
                 <button type="button" class="btn ghost" id="cmpReloadFormBtn">
                   Load from properties
                 </button>
@@ -205,6 +228,13 @@
                     <select id="cmpExistingA">
                       <option value="">Or pick existing Client doc</option>
                     </select>
+                    <label class="field mapper-header-field hidden" id="cmpSheetFieldA">
+                      <span>Excel A sheet *</span>
+                      <select id="cmpSheetA" name="clientSheetA">
+                        <option value="">-- Choose sheet --</option>
+                      </select>
+                    </label>
+                    <p class="hint hidden" id="cmpSheetHintA">This Excel A file has more than one sheet. Choose the sheet to compare.</p>
                   </div>
                   <div class="field">
                     <span>Excel B *</span>
@@ -215,6 +245,13 @@
                     <select id="cmpExistingB">
                       <option value="">Or pick existing Client doc</option>
                     </select>
+                    <label class="field mapper-header-field hidden" id="cmpSheetFieldB">
+                      <span>Excel B sheet *</span>
+                      <select id="cmpSheetB" name="clientSheetB">
+                        <option value="">-- Choose sheet --</option>
+                      </select>
+                    </label>
+                    <p class="hint hidden" id="cmpSheetHintB">This Excel B file has more than one sheet. Choose the sheet to compare.</p>
                   </div>
                 </div>
 
@@ -269,19 +306,22 @@
                 </div>
 
                 <div class="entity-map">
-                  <p class="entity-map-title">Entity per output sheet * <em class="optional-tag">(single or multi)</em></p>
+                  <p class="entity-map-title">Entity per output sheet * <em class="optional-tag">(checkboxes or custom)</em></p>
                   <div class="grid-3">
                     <div class="field">
                       <span>Common sheet</span>
                       <div class="check-list check-list-inline" id="cmpEntityCommon" data-entity-group="common"></div>
+                      <input id="cmpEntityCustomCommon" type="text" placeholder="Custom entity (overrides)" autocomplete="off" />
                     </div>
                     <div class="field">
                       <span>Unique Excel A</span>
                       <div class="check-list check-list-inline" id="cmpEntityUniqueA" data-entity-group="uniqueA"></div>
+                      <input id="cmpEntityCustomUniqueA" type="text" placeholder="Custom entity (overrides)" autocomplete="off" />
                     </div>
                     <div class="field">
                       <span>Unique Excel B</span>
                       <div class="check-list check-list-inline" id="cmpEntityUniqueB" data-entity-group="uniqueB"></div>
+                      <input id="cmpEntityCustomUniqueB" type="text" placeholder="Custom entity (overrides)" autocomplete="off" />
                     </div>
                   </div>
                 </div>
@@ -316,14 +356,198 @@
             </div>
         </section>
         </div>
+
+        <div id="viewEp" class="hidden">
+        <section class="panel" aria-labelledby="ep-heading">
+          <div class="panel-head">
+            <h2 id="ep-heading">Map Execution Plan (EP)</h2>
+            <div class="btn-row">
+              <button type="button" class="btn ghost" id="resetEpBtn">Reset</button>
+              <button type="button" class="btn ghost" id="epReloadPropsBtn">
+                Load from properties
+              </button>
+            </div>
+          </div>
+
+          <form id="epForm" class="form" autocomplete="off">
+            <div id="epNotice" class="validate-banner hidden" role="alert"></div>
+
+            <div class="field">
+              <span>Source Mode *</span>
+              <div class="ep-source-toggle">
+                <label class="radio-label">
+                  <input type="radio" name="epSourceMode" id="epSourceUploadRadio" value="upload" checked />
+                  <span>Upload Summary Excel</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="epSourceMode" id="epSourceLiveRadio" value="live" />
+                  <span>Live SimplifyQA API</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Upload summary section -->
+            <div id="epUploadSection">
+              <div class="field">
+                <span>SimplifyQA Summary Excel *</span>
+                <div class="dropzone" id="epSummaryDrop" data-label="Summary Excel">
+                  <p class="drop-hint">Drop TestCases_...Summary.xlsx here or browse</p>
+                  <input id="epSummaryFile" name="summary" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                </div>
+                <select id="epExistingSummary">
+                  <option value="">Or pick existing sample summary file</option>
+                </select>
+                <label class="field mapper-header-field hidden" id="epSheetField">
+                  <span>Summary sheet *</span>
+                  <select id="epSheetSelect" name="summarySheet">
+                    <option value="">-- Choose sheet --</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <!-- Live API section -->
+            <div id="epLiveSection" class="hidden">
+              <label class="field">
+                <span>Project ID *</span>
+                <input id="epProjectId" name="projectId" type="number" value="5" placeholder="5" />
+              </label>
+              <p class="hint" id="epTokenHint">Uses SimplifyQA Bearer Token from the <strong>Auth</strong> panel in the sidebar.</p>
+            </div>
+
+            <div class="grid-2">
+              <label class="field">
+                <span>Module</span>
+                <select id="epModule" name="module">
+                  <option value="">-- All modules (or pick) --</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Custom Module</span>
+                <input id="epModuleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
+              </label>
+            </div>
+
+            <div class="grid-2">
+              <label class="field">
+                <span>Entity</span>
+                <select id="epEntity" name="entity">
+                  <option value="">-- All entities (or pick) --</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Custom Entity</span>
+                <input id="epEntityCustom" name="entityCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
+              </label>
+            </div>
+
+            <p class="hint" id="epSheetPreviewHint">Output sheet name: <strong id="epOutputSheetPreview">Sheet1</strong></p>
+
+            <div class="grid-2">
+              <label class="field">
+                <span>Testcase Version *</span>
+                <input id="epVersion" name="version" type="text" value="v1.0" />
+              </label>
+              <label class="field">
+                <span>Execution Type *</span>
+                <select id="epExecutionType" name="executionType">
+                  <option value="Manual" selected>Manual</option>
+                  <option value="Automated">Automated</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <span>Assigned Date</span>
+                <div class="date-input-group">
+                  <input id="epAssignedDate" name="assignedDate" type="text" placeholder="e.g. 08/20/1996" autocomplete="off" />
+                  <input type="date" id="epDatePicker" title="Pick date visually" />
+                </div>
+              </div>
+              <label class="field">
+                <span>Date Format *</span>
+                <select id="epDateFormat" name="dateFormat">
+                  <option value="mm/dd/yyyy">1. mm/dd/yyyy (e.g. 08/20/1996)</option>
+                  <option value="dd/mm/yyyy">2. dd/mm/yyyy (e.g. 02/12/2023)</option>
+                  <option value="m/d/yyyy">3. m/d/yyyy (e.g. 4/18/2024)</option>
+                  <option value="yyyy/mm/dd">4. yyyy/mm/dd (e.g. 2023/12/31)</option>
+                </select>
+              </label>
+            </div>
+            <p class="hint">Supported formats: 1. mm/dd/yyyy (08/20/1996) | 2. dd/mm/yyyy (02/12/2023) | 3. m/d/yyyy (4/18/2024) | 4. yyyy/mm/dd (2023/12/31)</p>
+
+            <div class="field">
+              <span>Assignee Email ID <em class="optional-tag">(optional, blank by default)</em></span>
+              <input id="epAssigneeEmail" name="assigneeEmail" type="text" placeholder="Leave blank or enter assignee email" autocomplete="off" />
+            </div>
+
+            <div class="actions sticky-actions">
+              <button type="button" class="btn secondary" id="epReviewBtn">Review EP Plan</button>
+              <button type="submit" class="btn primary" id="epGenerateBtn">Generate EP Excel</button>
+              <p class="status" id="epStatus" aria-live="polite"></p>
+            </div>
+          </form>
+
+          <div class="stats-row hidden" id="epStats"></div>
+
+          <div class="result hidden" id="epResult">
+            <h3>Execution Plan Result</h3>
+            <p id="epResultMessage"></p>
+            <div class="result-links" id="epResultLinks"></div>
+          </div>
+        </section>
+        </div>
         </div>
 
         <aside class="side-stack">
+          <section class="panel" aria-labelledby="auth-heading">
+            <div class="panel-head">
+              <h2 id="auth-heading">Auth</h2>
+            </div>
+            <p class="auth-status-line" id="authStatusHint">Checking token…</p>
+            <div id="authReadyActions" class="auth-ready-actions hidden">
+              <button type="button" class="btn ghost" id="changeAuthBtn">
+                Change token
+              </button>
+            </div>
+            <div id="authEditBlock" class="auth-edit hidden">
+              <label class="field">
+                <span id="authTokenLabel">SimplifyQA bearer token</span>
+                <input
+                  type="password"
+                  id="authTokenInput"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Paste bearer token"
+                />
+              </label>
+              <div class="actions">
+                <button type="button" class="btn secondary" id="saveAuthBtn">
+                  Save token
+                </button>
+                <button type="button" class="btn ghost hidden" id="cancelAuthBtn">
+                  Cancel
+                </button>
+                <p class="status" id="authStatus" aria-live="polite"></p>
+              </div>
+              <p class="hint">Saved to <code>.env</code> · applied immediately</p>
+            </div>
+          </section>
+
           <section class="panel" aria-labelledby="issues-heading">
             <div class="panel-head">
               <h2 id="issues-heading">Validation</h2>
               <div class="chip-row" id="issueChips"></div>
             </div>
+            <input
+              id="issueSearch"
+              type="search"
+              placeholder="Search type, testcase, or message"
+              autocomplete="off"
+              aria-label="Search validation items"
+              hidden
+            />
             <ul class="issue-list" id="issueList">
               <li class="muted">Review a client file to see sequencing, missing steps, expected results, and pre-req matches.</li>
             </ul>
@@ -392,6 +616,6 @@
         </p>
       </footer>
     </div>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=1.2.4"></script>
   </body>
 </html>

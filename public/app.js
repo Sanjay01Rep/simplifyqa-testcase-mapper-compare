@@ -1,11 +1,14 @@
 const clientFileEl = document.getElementById("clientFile");
 const kenyaFileEl = document.getElementById("kenyaFile");
 const existingClientEl = document.getElementById("existingClient");
+const clientSheetEl = document.getElementById("clientSheet");
+const clientSheetFieldEl = document.getElementById("clientSheetField");
+const clientSheetHintEl = document.getElementById("clientSheetHint");
 const existingKenyaEl = document.getElementById("existingKenya");
 const mapperHeaderEl = document.getElementById("mapperHeader");
 const moduleEl = document.getElementById("module");
 const moduleCustomEl = document.getElementById("moduleCustom");
-const entityEl = document.getElementById("entity");
+const entityCustomEl = document.getElementById("entityCustom");
 const entityChecksEl = document.getElementById("entityChecks");
 const serverBannerEl = document.getElementById("serverBanner");
 const versionsEl = document.getElementById("versions");
@@ -27,6 +30,7 @@ const validateBannerEl = document.getElementById("validateBanner");
 const historyListEl = document.getElementById("historyList");
 const issueListEl = document.getElementById("issueList");
 const issueChipsEl = document.getElementById("issueChips");
+const issueSearchEl = document.getElementById("issueSearch");
 const statsRowEl = document.getElementById("statsRow");
 const runForm = document.getElementById("runForm");
 const uploadNoticeEl = document.getElementById("uploadNotice");
@@ -125,23 +129,37 @@ function selectedModule() {
   return (moduleEl && moduleEl.value.trim()) || "";
 }
 
+function parseEntityList(value) {
+  return String(value || "")
+    .split(/[,;]/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
 function selectedEntity() {
-  if (entityChecksEl) {
-    return checkedValues(entityChecksEl).join(", ");
-  }
-  return (entityEl && entityEl.value.trim()) || "";
+  const custom = (entityCustomEl && entityCustomEl.value.trim()) || "";
+  if (custom) return parseEntityList(custom).join(", ");
+  if (entityChecksEl) return checkedValues(entityChecksEl).join(", ");
+  return "";
 }
 
 function selectedEntities() {
+  const custom = (entityCustomEl && entityCustomEl.value.trim()) || "";
+  if (custom) return parseEntityList(custom);
   if (entityChecksEl) return checkedValues(entityChecksEl);
-  const one = selectedEntity();
-  return one ? [one] : [];
+  return [];
 }
 
 function cmpSelectedModule() {
   const custom = (cmpModuleCustomEl && cmpModuleCustomEl.value.trim()) || "";
   if (custom) return custom;
   return (cmpModuleEl && cmpModuleEl.value.trim()) || "";
+}
+
+function sheetEntities(checkEl, customEl) {
+  const custom = (customEl && customEl.value.trim()) || "";
+  if (custom) return parseEntityList(custom);
+  return checkedValues(checkEl);
 }
 
 function fillChoices(select, values, placeholder) {
@@ -257,22 +275,67 @@ function renderStats(summary) {
     .join("");
 }
 
-function renderIssues(issues) {
-  const list = issues || [];
+let lastIssues = [];
+let issueFilter = "ALL";
+let issueQuery = "";
+
+function renderIssues(issues, keepFilter) {
+  if (Array.isArray(issues)) lastIssues = issues.slice();
+  if (!keepFilter) {
+    issueFilter = "ALL";
+    issueQuery = "";
+    if (issueSearchEl) issueSearchEl.value = "";
+  }
+  const list = lastIssues || [];
   const counts = { FIX: 0, WARN: 0, ERROR: 0, INFO: 0 };
   for (const iss of list) counts[iss.severity] = (counts[iss.severity] || 0) + 1;
-  issueChipsEl.innerHTML = Object.entries(counts)
-    .filter(([, n]) => n)
-    .map(([k, n]) => `<span class="chip ${k}">${k} ${n}</span>`)
-    .join("");
+  const chips = Object.entries(counts).filter(([, n]) => n);
+  const chipHtml = [];
+  if (list.length) {
+    chipHtml.push(
+      `<button type="button" class="chip ALL${issueFilter === "ALL" ? " active" : ""}" data-filter="ALL">ALL ${list.length}</button>`
+    );
+  }
+  for (const [k, n] of chips) {
+    chipHtml.push(
+      `<button type="button" class="chip ${escapeHtml(k)}${issueFilter === k ? " active" : ""}" data-filter="${escapeHtml(
+        k
+      )}">${escapeHtml(k)} ${n}</button>`
+    );
+  }
+  issueChipsEl.innerHTML = chipHtml.join("");
+  issueChipsEl.querySelectorAll("button.chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-filter") || "ALL";
+      issueFilter = issueFilter === next && next !== "ALL" ? "ALL" : next;
+      renderIssues(null, true);
+    });
+  });
+
+  if (issueSearchEl) issueSearchEl.hidden = !list.length;
 
   if (!list.length) {
-    issueListEl.innerHTML = `<li class="muted">No issues found.</li>`;
+    issueListEl.innerHTML = `<li class="muted">Review a client file to see sequencing, missing steps, expected results, and pre-req matches.</li>`;
     return;
   }
 
-  issueListEl.innerHTML = list
-    .slice(0, 80)
+  const q = issueQuery.trim().toLowerCase();
+  const filtered = list.filter((iss) => {
+    if (issueFilter !== "ALL" && iss.severity !== issueFilter) return false;
+    if (!q) return true;
+    const hay = `${iss.severity || ""} ${iss.type || ""} ${iss.testcase || ""} ${iss.message || ""}`.toLowerCase();
+    return hay.includes(q);
+  });
+  if (!filtered.length) {
+    const why = q
+      ? `No matches for “${escapeHtml(issueQuery.trim())}”.`
+      : `No ${escapeHtml(issueFilter)} items.`;
+    issueListEl.innerHTML = `<li class="muted">${why}</li>`;
+    return;
+  }
+
+  issueListEl.innerHTML = filtered
+    .slice(0, 120)
     .map(
       (iss) => `<li class="${escapeHtml(iss.severity)}">
         <strong>[${escapeHtml(iss.severity)}]</strong> ${escapeHtml(iss.type)}
@@ -330,10 +393,12 @@ function formDataFromUi() {
   if (clientFileEl.files[0]) fd.append("client", clientFileEl.files[0]);
   if (kenyaFileEl.files[0]) fd.append("kenya", kenyaFileEl.files[0]);
   fd.append("existingClient", existingClientEl.value || "");
+  fd.append("clientSheet", (clientSheetEl && clientSheetEl.value) || "");
   fd.append("existingKenya", existingKenyaEl.value || "");
   fd.append("mapperHeader", (mapperHeaderEl && mapperHeaderEl.value) || "");
   fd.append("module", selectedModule());
   fd.append("moduleCustom", (moduleCustomEl && moduleCustomEl.value.trim()) || "");
+  fd.append("entityCustom", (entityCustomEl && entityCustomEl.value.trim()) || "");
   selectedEntities().forEach((v) => fd.append("entity", v));
   fd.append("versions", versionsEl.value.trim() || "v1.0");
   fd.append("testcaseType", testcaseTypeEl.value.trim() || "WEB");
@@ -345,9 +410,11 @@ function showResult(data, generated) {
   const s = data.summary || {};
   const usedSheets = Array.isArray(s.sheetNames) ? s.sheetNames : [];
   const sheetNote =
-    usedSheets.length === 2
-      ? ` 2-sheet file detected; mapped from both sheets (${usedSheets.join(", ")}).`
-      : "";
+    usedSheets.length === 1
+      ? ` Mapped from sheet "${usedSheets[0]}".`
+      : usedSheets.length > 1
+        ? ` Mapped from sheets ${usedSheets.join(", ")}.`
+        : "";
   resultMessageEl.textContent = generated
     ? `Generated ${s.outName} · ${s.mappedTcCount} TCs · ${s.mappedStepCount} steps · ${s.issues.length} log items.${sheetNote}`
     : `Reviewed ${s.mappedTcCount} TCs / ${s.mappedStepCount} steps. Generate Excel when ready.${sheetNote}`;
@@ -382,11 +449,18 @@ async function run(path, generated) {
     return;
   }
   if (!selectedEntities().length) {
-    setStatus(runStatusEl, "Select at least one Entity (Life UG, Gen UG, or Gen TZ).", "bad");
+    setStatus(runStatusEl, "Select an Entity, or type a custom entity.", "bad");
     return;
   }
   if (!clientFileEl.files[0] && !existingClientEl.value) {
     setStatus(runStatusEl, "Choose a client document.", "bad");
+    return;
+  }
+  if (clientSheetFieldEl && !clientSheetFieldEl.classList.contains("hidden") && !(clientSheetEl && clientSheetEl.value)) {
+    const msg = "This client file has more than one sheet. Choose which sheet to map.";
+    window.alert(msg);
+    setStatus(runStatusEl, msg, "bad");
+    showUploadNotice(msg, "bad");
     return;
   }
 
@@ -448,8 +522,13 @@ async function loadConfig() {
   if (cmpModuleEl) fillChoices(cmpModuleEl, data.modules || FALLBACK_MODULES, "-- Select module --");
   fillEntityChecks(data.entities || FALLBACK_ENTITIES);
   applyCompareProps(data.props || {});
+  clearMapEntitySelection();
+  if (epExistingSummaryEl) fillSelect(epExistingSummaryEl, data.epSampleFiles || [], "Or pick existing sample summary file");
+  if (epModuleEl) fillChoices(epModuleEl, data.modules || FALLBACK_MODULES, "-- All modules (or pick) --");
+  if (epEntityEl) fillChoices(epEntityEl, data.entities || FALLBACK_ENTITIES, "-- All entities (or pick) --");
+  updateEpSheetNamePreview();
   const props = data.props || {};
-  applyMapEntityFromProps(props);
+  // Map Entity is never auto-selected — user must pick (or type custom / Load from properties).
   if (props.Versions) versionsEl.value = props.Versions;
   if (props.TestcaseType) testcaseTypeEl.value = props.TestcaseType;
   if (props.Versions && cmpVersionsEl) cmpVersionsEl.value = props.Versions;
@@ -457,7 +536,7 @@ async function loadConfig() {
   if (data.healthPollMs) startHealthPoll(data.healthPollMs);
 }
 
-async function loadProperties() {
+async function loadProperties(options = {}) {
   setStatus(propsStatusEl, "Loading…");
   const data = await apiFetch("/api/properties");
   if (!data.ok) {
@@ -470,9 +549,135 @@ async function loadProperties() {
   testcaseTypeEl.value = props.TestcaseType || testcaseTypeEl.value || "WEB";
   if (cmpVersionsEl) cmpVersionsEl.value = props.Versions || cmpVersionsEl.value || "v1.0";
   if (cmpTypeEl) cmpTypeEl.value = props.TestcaseType || cmpTypeEl.value || "WEB";
-  applyMapEntityFromProps(props);
-  applyCompareProps(props);
+  // Map / Compare Entity stay unchecked unless explicitly requested.
+  if (options.applyMapEntity) applyMapEntityFromProps(props);
+  else clearMapEntitySelection();
+  applyCompareProps(props, { applyCompareEntity: Boolean(options.applyCompareEntity) });
+  if (options.applyEpProps) {
+    if (epModuleEl && props.Module) epModuleEl.value = props.Module;
+    if (epEntityEl && props.Entity) epEntityEl.value = props.Entity;
+    if (epVersionEl && props.Versions) epVersionEl.value = props.Versions;
+    updateEpSheetNamePreview();
+  }
   setStatus(propsStatusEl, "Loaded mapping.properties.", "ok");
+}
+
+function clearMapEntitySelection() {
+  if (entityChecksEl) setCheckedValues(entityChecksEl, []);
+  if (entityCustomEl) entityCustomEl.value = "";
+}
+
+function resetMapForm() {
+  if (clientFileEl) clientFileEl.value = "";
+  if (kenyaFileEl) kenyaFileEl.value = "";
+  if (existingClientEl) existingClientEl.value = "";
+  if (existingKenyaEl) existingKenyaEl.value = "";
+  if (mapperHeaderEl) mapperHeaderEl.value = "";
+  if (moduleEl) moduleEl.value = "";
+  if (moduleCustomEl) moduleCustomEl.value = "";
+  clearMapEntitySelection();
+  if (versionsEl) versionsEl.value = "v1.0";
+  if (testcaseTypeEl) testcaseTypeEl.value = "WEB";
+  hideClientSheetPicker();
+  showUploadNotice("");
+  showServerBanner(true, "");
+  clearMapResults();
+  setStatus(runStatusEl, "Form reset.", "ok");
+}
+
+function clearMapResults() {
+  if (resultBoxEl) resultBoxEl.classList.add("hidden");
+  if (resultMessageEl) resultMessageEl.textContent = "";
+  if (resultLinksEl) resultLinksEl.innerHTML = "";
+  if (logOutputEl) logOutputEl.textContent = "";
+  if (previewPanelEl) previewPanelEl.classList.add("hidden");
+  if (previewMetaEl) previewMetaEl.textContent = "";
+  if (previewTableBody) previewTableBody.innerHTML = "";
+  if (statsRowEl) {
+    statsRowEl.classList.add("hidden");
+    statsRowEl.innerHTML = "";
+  }
+  if (progressStepsEl) progressStepsEl.hidden = true;
+  if (validateBannerEl) {
+    validateBannerEl.classList.add("hidden");
+    validateBannerEl.textContent = "";
+  }
+  lastIssues = [];
+  issueFilter = "ALL";
+  issueQuery = "";
+  if (issueSearchEl) {
+    issueSearchEl.value = "";
+    issueSearchEl.hidden = true;
+  }
+  if (issueListEl) {
+    issueListEl.innerHTML =
+      '<li class="muted">Review a client file to see sequencing, missing steps, expected results, and pre-req matches.</li>';
+  }
+  if (issueChipsEl) issueChipsEl.innerHTML = "";
+}
+
+function resetCompareForm() {
+  if (cmpFileAEl) cmpFileAEl.value = "";
+  if (cmpFileBEl) cmpFileBEl.value = "";
+  if (cmpKenyaFileEl) cmpKenyaFileEl.value = "";
+  if (cmpExistingAEl) cmpExistingAEl.value = "";
+  if (cmpExistingBEl) cmpExistingBEl.value = "";
+  if (cmpExistingKenyaEl) cmpExistingKenyaEl.value = "";
+  if (cmpMapperHeaderEl) cmpMapperHeaderEl.value = "";
+  if (cmpModuleEl) cmpModuleEl.value = "";
+  if (cmpModuleCustomEl) cmpModuleCustomEl.value = "";
+  setCheckedValues(cmpEntityCommonEl, []);
+  setCheckedValues(cmpEntityUniqueAEl, []);
+  setCheckedValues(cmpEntityUniqueBEl, []);
+  if (cmpEntityCustomCommonEl) cmpEntityCustomCommonEl.value = "";
+  if (cmpEntityCustomUniqueAEl) cmpEntityCustomUniqueAEl.value = "";
+  if (cmpEntityCustomUniqueBEl) cmpEntityCustomUniqueBEl.value = "";
+  if (cmpVersionsEl) cmpVersionsEl.value = "v1.0";
+  if (cmpTypeEl) cmpTypeEl.value = "WEB";
+  hideCmpSheetPicker("A");
+  hideCmpSheetPicker("B");
+  showCmpNotice("");
+  clearCompareResults();
+  setCompareStep(1);
+  setStatus(cmpStatusEl, "Form reset.", "ok");
+}
+
+function clearCompareResults() {
+  const cmpResult = document.getElementById("cmpResult");
+  const cmpResultMessage = document.getElementById("cmpResultMessage");
+  const cmpResultLinks = document.getElementById("cmpResultLinks");
+  const cmpStats = document.getElementById("cmpStats");
+  const cmpProgress = document.getElementById("cmpProgressSteps");
+  const cmpPreview = document.getElementById("cmpPreviewPanel");
+  const cmpPreviewMeta = document.getElementById("cmpPreviewMeta");
+  const cmpPreviewBody = document.querySelector("#cmpPreviewTable tbody");
+  if (cmpResult) cmpResult.classList.add("hidden");
+  if (cmpResultMessage) cmpResultMessage.textContent = "";
+  if (cmpResultLinks) cmpResultLinks.innerHTML = "";
+  if (cmpStats) {
+    cmpStats.classList.add("hidden");
+    cmpStats.innerHTML = "";
+  }
+  if (cmpProgress) cmpProgress.hidden = true;
+  if (cmpPreview) cmpPreview.classList.add("hidden");
+  if (cmpPreviewMeta) cmpPreviewMeta.textContent = "";
+  if (cmpPreviewBody) cmpPreviewBody.innerHTML = "";
+  if (validateBannerEl) {
+    validateBannerEl.classList.add("hidden");
+    validateBannerEl.textContent = "";
+  }
+  lastIssues = [];
+  issueFilter = "ALL";
+  issueQuery = "";
+  if (issueSearchEl) {
+    issueSearchEl.value = "";
+    issueSearchEl.hidden = true;
+  }
+  if (issueListEl) {
+    issueListEl.innerHTML =
+      '<li class="muted">Review a client file to see sequencing, missing steps, expected results, and pre-req matches.</li>';
+  }
+  if (issueChipsEl) issueChipsEl.innerHTML = "";
 }
 
 async function saveProperties() {
@@ -567,7 +772,7 @@ async function loadHistory() {
   }
   const hist = await fetch("/api/history");
   const data = await parseApiJson(hist);
-  const runs = data.runs || [];
+  const runs = (data.runs || []).slice(0, 8);
   if (!runs.length) {
     historyListEl.innerHTML = `<li class="muted">No runs yet.</li>`;
     return;
@@ -601,11 +806,33 @@ runForm.addEventListener("submit", (e) => {
 });
 runBtn.addEventListener("click", () => run("/api/generate", true));
 reviewBtn.addEventListener("click", () => run("/api/review", false));
-document.getElementById("reloadFormBtn").addEventListener("click", loadProperties);
-document.getElementById("reloadPropsBtn").addEventListener("click", loadProperties);
+document.getElementById("reloadFormBtn").addEventListener("click", () =>
+  loadProperties({ applyMapEntity: true, applyCompareEntity: true })
+);
+document.getElementById("reloadPropsBtn").addEventListener("click", () =>
+  loadProperties({ applyMapEntity: true, applyCompareEntity: true })
+);
+const resetMapBtn = document.getElementById("resetMapBtn");
+if (resetMapBtn) resetMapBtn.addEventListener("click", resetMapForm);
 document.getElementById("savePropsBtn").addEventListener("click", saveProperties);
 document.getElementById("reloadHistoryBtn").addEventListener("click", loadHistory);
-clientFileEl.addEventListener("change", () => onXlsxChosen(clientFileEl, "Client document"));
+if (issueSearchEl) {
+  issueSearchEl.addEventListener("input", () => {
+    issueQuery = issueSearchEl.value || "";
+    renderIssues(null, true);
+  });
+}
+clientFileEl.addEventListener("change", () => {
+  onXlsxChosen(clientFileEl, "Client document");
+  if (clientFileEl.files[0] && existingClientEl) existingClientEl.value = "";
+  refreshClientSheets();
+});
+if (existingClientEl) {
+  existingClientEl.addEventListener("change", () => {
+    if (existingClientEl.value && clientFileEl) clientFileEl.value = "";
+    refreshClientSheets();
+  });
+}
 kenyaFileEl.addEventListener("change", () => {
   onXlsxChosen(kenyaFileEl, "Mapper file");
   refreshMapperHeaders("map");
@@ -634,6 +861,12 @@ const cmpFileAEl = document.getElementById("cmpFileA");
 const cmpFileBEl = document.getElementById("cmpFileB");
 const cmpExistingAEl = document.getElementById("cmpExistingA");
 const cmpExistingBEl = document.getElementById("cmpExistingB");
+const cmpSheetAEl = document.getElementById("cmpSheetA");
+const cmpSheetBEl = document.getElementById("cmpSheetB");
+const cmpSheetFieldAEl = document.getElementById("cmpSheetFieldA");
+const cmpSheetFieldBEl = document.getElementById("cmpSheetFieldB");
+const cmpSheetHintAEl = document.getElementById("cmpSheetHintA");
+const cmpSheetHintBEl = document.getElementById("cmpSheetHintB");
 const cmpKenyaFileEl = document.getElementById("cmpKenyaFile");
 const cmpExistingKenyaEl = document.getElementById("cmpExistingKenya");
 const cmpMapperHeaderEl = document.getElementById("cmpMapperHeader");
@@ -642,6 +875,9 @@ const cmpModuleCustomEl = document.getElementById("cmpModuleCustom");
 const cmpEntityCommonEl = document.getElementById("cmpEntityCommon");
 const cmpEntityUniqueAEl = document.getElementById("cmpEntityUniqueA");
 const cmpEntityUniqueBEl = document.getElementById("cmpEntityUniqueB");
+const cmpEntityCustomCommonEl = document.getElementById("cmpEntityCustomCommon");
+const cmpEntityCustomUniqueAEl = document.getElementById("cmpEntityCustomUniqueA");
+const cmpEntityCustomUniqueBEl = document.getElementById("cmpEntityCustomUniqueB");
 const cmpVersionsEl = document.getElementById("cmpVersions");
 const cmpTypeEl = document.getElementById("cmpType");
 const cmpBtn = document.getElementById("cmpBtn");
@@ -658,27 +894,80 @@ const cmpPreviewPanelEl = document.getElementById("cmpPreviewPanel");
 const cmpPreviewMetaEl = document.getElementById("cmpPreviewMeta");
 const cmpPreviewTableBody = document.querySelector("#cmpPreviewTable tbody");
 
+const authStatusHintEl = document.getElementById("authStatusHint");
+const authReadyActionsEl = document.getElementById("authReadyActions");
+const authEditBlockEl = document.getElementById("authEditBlock");
+const authTokenLabelEl = document.getElementById("authTokenLabel");
+const authTokenInputEl = document.getElementById("authTokenInput");
+const saveAuthBtn = document.getElementById("saveAuthBtn");
+const cancelAuthBtn = document.getElementById("cancelAuthBtn");
+const changeAuthBtn = document.getElementById("changeAuthBtn");
+const authStatusEl = document.getElementById("authStatus");
+
+const viewEpEl = document.getElementById("viewEp");
+const tabEp = document.getElementById("tabEp");
+const resetEpBtn = document.getElementById("resetEpBtn");
+const epReloadPropsBtn = document.getElementById("epReloadPropsBtn");
+const epForm = document.getElementById("epForm");
+const epNoticeEl = document.getElementById("epNotice");
+const epSourceUploadRadio = document.getElementById("epSourceUploadRadio");
+const epSourceLiveRadio = document.getElementById("epSourceLiveRadio");
+const epUploadSection = document.getElementById("epUploadSection");
+const epLiveSection = document.getElementById("epLiveSection");
+const epSummaryFileEl = document.getElementById("epSummaryFile");
+const epExistingSummaryEl = document.getElementById("epExistingSummary");
+const epSheetFieldEl = document.getElementById("epSheetField");
+const epSheetSelectEl = document.getElementById("epSheetSelect");
+const epProjectIdEl = document.getElementById("epProjectId");
+const epModuleEl = document.getElementById("epModule");
+const epModuleCustomEl = document.getElementById("epModuleCustom");
+const epEntityEl = document.getElementById("epEntity");
+const epEntityCustomEl = document.getElementById("epEntityCustom");
+const epOutputSheetPreviewEl = document.getElementById("epOutputSheetPreview");
+const epVersionEl = document.getElementById("epVersion");
+const epExecutionTypeEl = document.getElementById("epExecutionType");
+const epAssignedDateEl = document.getElementById("epAssignedDate");
+const epDatePickerEl = document.getElementById("epDatePicker");
+const epDateFormatEl = document.getElementById("epDateFormat");
+const epAssigneeEmailEl = document.getElementById("epAssigneeEmail");
+const epReviewBtn = document.getElementById("epReviewBtn");
+const epGenerateBtn = document.getElementById("epGenerateBtn");
+const epStatusEl = document.getElementById("epStatus");
+const epStatsEl = document.getElementById("epStats");
+const epResultEl = document.getElementById("epResult");
+const epResultMessageEl = document.getElementById("epResultMessage");
+const epResultLinksEl = document.getElementById("epResultLinks");
+
 function setView(which) {
-  const compare = which === "compare";
-  if (viewMapEl) viewMapEl.classList.toggle("hidden", compare);
-  if (viewCompareEl) viewCompareEl.classList.toggle("hidden", !compare);
+  const isMap = which === "map";
+  const isCompare = which === "compare";
+  const isEp = which === "ep";
+
+  if (viewMapEl) viewMapEl.classList.toggle("hidden", !isMap);
+  if (viewCompareEl) viewCompareEl.classList.toggle("hidden", !isCompare);
+  if (viewEpEl) viewEpEl.classList.toggle("hidden", !isEp);
+
   if (previewPanelEl) {
     const hasMapPreview = previewTableBody && previewTableBody.children.length;
-    previewPanelEl.classList.toggle("hidden", compare || !hasMapPreview);
+    previewPanelEl.classList.toggle("hidden", isCompare || (!isMap && !isEp && !hasMapPreview));
   }
   if (cmpPreviewPanelEl) {
     const hasCmpPreview = cmpPreviewTableBody && cmpPreviewTableBody.children.length;
-    cmpPreviewPanelEl.classList.toggle("hidden", !compare || !hasCmpPreview);
+    cmpPreviewPanelEl.classList.toggle("hidden", !isCompare || !hasCmpPreview);
   }
   if (tabMap) {
-    tabMap.classList.toggle("active", !compare);
-    tabMap.setAttribute("aria-selected", compare ? "false" : "true");
+    tabMap.classList.toggle("active", isMap);
+    tabMap.setAttribute("aria-selected", isMap ? "true" : "false");
   }
   if (tabCompare) {
-    tabCompare.classList.toggle("active", compare);
-    tabCompare.setAttribute("aria-selected", compare ? "true" : "false");
+    tabCompare.classList.toggle("active", isCompare);
+    tabCompare.setAttribute("aria-selected", isCompare ? "true" : "false");
   }
-  if (compare) setCompareStep(1);
+  if (tabEp) {
+    tabEp.classList.toggle("active", isEp);
+    tabEp.setAttribute("aria-selected", isEp ? "true" : "false");
+  }
+  if (isCompare) setCompareStep(1);
 }
 
 function hasCompareExcelA() {
@@ -732,6 +1021,16 @@ function goCompareNext() {
     if (statusEl) setStatus(statusEl, "Choose Excel B.", "bad");
     return;
   }
+  if (cmpSheetFieldAEl && !cmpSheetFieldAEl.classList.contains("hidden") && !(cmpSheetAEl && cmpSheetAEl.value)) {
+    showCmpNotice("Choose which sheet to use for Excel A.", "bad");
+    if (statusEl) setStatus(statusEl, "Choose Excel A sheet.", "bad");
+    return;
+  }
+  if (cmpSheetFieldBEl && !cmpSheetFieldBEl.classList.contains("hidden") && !(cmpSheetBEl && cmpSheetBEl.value)) {
+    showCmpNotice("Choose which sheet to use for Excel B.", "bad");
+    if (statusEl) setStatus(statusEl, "Choose Excel B sheet.", "bad");
+    return;
+  }
   showCmpNotice("");
   if (statusEl) setStatus(statusEl, "");
   setCompareStep(2);
@@ -744,7 +1043,6 @@ function goCompareBack() {
 function fillMapEntityChecks(values) {
   if (!entityChecksEl) return;
   const list = values && values.length ? values : FALLBACK_ENTITIES;
-  const selected = checkedValues(entityChecksEl);
   entityChecksEl.innerHTML = list
     .map(
       (value) =>
@@ -753,27 +1051,25 @@ function fillMapEntityChecks(values) {
         )}"> ${escapeHtml(value)}</label>`
     )
     .join("");
-  setCheckedValues(entityChecksEl, selected.length ? selected : ["Life UG"]);
+  // Never auto-check Map Entity — user must choose.
+  setCheckedValues(entityChecksEl, []);
 }
 
 function applyMapEntityFromProps(props) {
-  if (!props || !entityChecksEl) return;
-  const fromProps = parseEntityProp(props.Entity);
-  if (fromProps.length) setCheckedValues(entityChecksEl, fromProps);
+  if (!props) return;
+  if (entityChecksEl) {
+    const fromProps = parseEntityProp(props.Entity);
+    if (fromProps.length) setCheckedValues(entityChecksEl, fromProps);
+  }
+  if (entityCustomEl && props.EntityCustom != null) {
+    entityCustomEl.value = String(props.EntityCustom || "");
+  }
 }
 
 function fillEntityChecks(values) {
   const list = values && values.length ? values : FALLBACK_ENTITIES;
-  const defaults = {
-    common: ["Gen UG", "Life UG"],
-    uniqueA: ["Gen UG"],
-    uniqueB: ["Life UG"],
-  };
-  [
-    [cmpEntityCommonEl, defaults.common],
-    [cmpEntityUniqueAEl, defaults.uniqueA],
-    [cmpEntityUniqueBEl, defaults.uniqueB],
-  ].forEach(([box, fallback]) => {
+  // Never auto-check Compare entities — user must choose (or Load from properties).
+  [cmpEntityCommonEl, cmpEntityUniqueAEl, cmpEntityUniqueBEl].forEach((box) => {
     if (!box) return;
     const selected = checkedValues(box);
     box.innerHTML = list
@@ -784,7 +1080,7 @@ function fillEntityChecks(values) {
           )}"> ${escapeHtml(value)}</label>`
       )
       .join("");
-    setCheckedValues(box, selected.length ? selected : fallback);
+    setCheckedValues(box, selected);
   });
 }
 
@@ -808,14 +1104,26 @@ function parseEntityProp(value) {
     .filter(Boolean);
 }
 
-function applyCompareProps(props) {
+function applyCompareProps(props, options = {}) {
   if (!props) return;
   // Module is never auto-selected — user must choose (or type a custom module).
   if (props.Versions && cmpVersionsEl) cmpVersionsEl.value = props.Versions;
   if (props.TestcaseType && cmpTypeEl) cmpTypeEl.value = props.TestcaseType;
-  setCheckedValues(cmpEntityCommonEl, parseEntityProp(props.CompareEntityCommon));
-  setCheckedValues(cmpEntityUniqueAEl, parseEntityProp(props.CompareEntityUniqueA));
-  setCheckedValues(cmpEntityUniqueBEl, parseEntityProp(props.CompareEntityUniqueB));
+  // Entity stays unchecked unless explicitly loading from properties.
+  if (options.applyCompareEntity) {
+    setCheckedValues(cmpEntityCommonEl, parseEntityProp(props.CompareEntityCommon));
+    setCheckedValues(cmpEntityUniqueAEl, parseEntityProp(props.CompareEntityUniqueA));
+    setCheckedValues(cmpEntityUniqueBEl, parseEntityProp(props.CompareEntityUniqueB));
+    if (cmpEntityCustomCommonEl) {
+      cmpEntityCustomCommonEl.value = String(props.CompareEntityCustomCommon || "");
+    }
+    if (cmpEntityCustomUniqueAEl) {
+      cmpEntityCustomUniqueAEl.value = String(props.CompareEntityCustomUniqueA || "");
+    }
+    if (cmpEntityCustomUniqueBEl) {
+      cmpEntityCustomUniqueBEl.value = String(props.CompareEntityCustomUniqueB || "");
+    }
+  }
   if (cmpExistingKenyaEl && props.CompareKenya) {
     const kenyaVal = String(props.CompareKenya).trim();
     if ([...cmpExistingKenyaEl.options].some((o) => o.value === kenyaVal)) {
@@ -845,20 +1153,35 @@ function upsertPropLine(text, key, value) {
 }
 
 async function saveCompareMapping() {
-  const common = checkedValues(cmpEntityCommonEl);
-  const uniqueA = checkedValues(cmpEntityUniqueAEl);
-  const uniqueB = checkedValues(cmpEntityUniqueBEl);
+  const common = sheetEntities(cmpEntityCommonEl, cmpEntityCustomCommonEl);
+  const uniqueA = sheetEntities(cmpEntityUniqueAEl, cmpEntityCustomUniqueAEl);
+  const uniqueB = sheetEntities(cmpEntityUniqueBEl, cmpEntityCustomUniqueBEl);
   if (!common.length || !uniqueA.length || !uniqueB.length) {
-    setStatus(cmpStatusEl, "Select Entity for Common, Unique A, and Unique B before saving.", "bad");
+    setStatus(cmpStatusEl, "Select or type Entity for Common, Unique A, and Unique B before saving.", "bad");
     return;
   }
   const loaded = await apiFetch("/api/properties");
   let text = loaded.text || "";
   text = upsertPropLine(text, "CompareModule", cmpSelectedModule());
   text = upsertPropLine(text, "CompareModuleCustom", (cmpModuleCustomEl && cmpModuleCustomEl.value.trim()) || "");
-  text = upsertPropLine(text, "CompareEntityCommon", common.join(", "));
-  text = upsertPropLine(text, "CompareEntityUniqueA", uniqueA.join(", "));
-  text = upsertPropLine(text, "CompareEntityUniqueB", uniqueB.join(", "));
+  text = upsertPropLine(text, "CompareEntityCommon", checkedValues(cmpEntityCommonEl).join(", "));
+  text = upsertPropLine(text, "CompareEntityUniqueA", checkedValues(cmpEntityUniqueAEl).join(", "));
+  text = upsertPropLine(text, "CompareEntityUniqueB", checkedValues(cmpEntityUniqueBEl).join(", "));
+  text = upsertPropLine(
+    text,
+    "CompareEntityCustomCommon",
+    (cmpEntityCustomCommonEl && cmpEntityCustomCommonEl.value.trim()) || ""
+  );
+  text = upsertPropLine(
+    text,
+    "CompareEntityCustomUniqueA",
+    (cmpEntityCustomUniqueAEl && cmpEntityCustomUniqueAEl.value.trim()) || ""
+  );
+  text = upsertPropLine(
+    text,
+    "CompareEntityCustomUniqueB",
+    (cmpEntityCustomUniqueBEl && cmpEntityCustomUniqueBEl.value.trim()) || ""
+  );
   text = upsertPropLine(
     text,
     "CompareKenya",
@@ -983,12 +1306,26 @@ function compareFormData() {
   fd.append("existingClientA", cmpExistingAEl.value || "");
   fd.append("existingClientB", cmpExistingBEl.value || "");
   fd.append("existingKenya", (cmpExistingKenyaEl && cmpExistingKenyaEl.value) || "");
+  fd.append("clientSheetA", (cmpSheetAEl && cmpSheetAEl.value) || "");
+  fd.append("clientSheetB", (cmpSheetBEl && cmpSheetBEl.value) || "");
   fd.append("mapperHeader", (cmpMapperHeaderEl && cmpMapperHeaderEl.value) || "");
   fd.append("module", cmpSelectedModule());
   fd.append("moduleCustom", (cmpModuleCustomEl && cmpModuleCustomEl.value.trim()) || "");
-  checkedValues(cmpEntityCommonEl).forEach((v) => fd.append("entityCommon", v));
-  checkedValues(cmpEntityUniqueAEl).forEach((v) => fd.append("entityUniqueA", v));
-  checkedValues(cmpEntityUniqueBEl).forEach((v) => fd.append("entityUniqueB", v));
+  sheetEntities(cmpEntityCommonEl, cmpEntityCustomCommonEl).forEach((v) => fd.append("entityCommon", v));
+  sheetEntities(cmpEntityUniqueAEl, cmpEntityCustomUniqueAEl).forEach((v) => fd.append("entityUniqueA", v));
+  sheetEntities(cmpEntityUniqueBEl, cmpEntityCustomUniqueBEl).forEach((v) => fd.append("entityUniqueB", v));
+  fd.append(
+    "entityCustomCommon",
+    (cmpEntityCustomCommonEl && cmpEntityCustomCommonEl.value.trim()) || ""
+  );
+  fd.append(
+    "entityCustomUniqueA",
+    (cmpEntityCustomUniqueAEl && cmpEntityCustomUniqueAEl.value.trim()) || ""
+  );
+  fd.append(
+    "entityCustomUniqueB",
+    (cmpEntityCustomUniqueBEl && cmpEntityCustomUniqueBEl.value.trim()) || ""
+  );
   fd.append("versions", (cmpVersionsEl && cmpVersionsEl.value.trim()) || "v1.0");
   fd.append("testcaseType", (cmpTypeEl && cmpTypeEl.value.trim()) || "WEB");
   return fd;
@@ -1031,19 +1368,19 @@ async function runCompare(path, generated) {
     showCmpNotice("Select a Module, or type a custom module.", "bad");
     return;
   }
-  if (!checkedValues(cmpEntityCommonEl).length) {
-    setStatus(cmpStatusEl, "Select at least one Entity for the Common sheet.", "bad");
-    showCmpNotice("Select at least one Entity for the Common sheet.", "bad");
+  if (!sheetEntities(cmpEntityCommonEl, cmpEntityCustomCommonEl).length) {
+    setStatus(cmpStatusEl, "Select or type Entity for the Common sheet.", "bad");
+    showCmpNotice("Select or type Entity for the Common sheet.", "bad");
     return;
   }
-  if (!checkedValues(cmpEntityUniqueAEl).length) {
-    setStatus(cmpStatusEl, "Select Entity for unique Excel A sheet.", "bad");
-    showCmpNotice("Select Entity for unique Excel A sheet.", "bad");
+  if (!sheetEntities(cmpEntityUniqueAEl, cmpEntityCustomUniqueAEl).length) {
+    setStatus(cmpStatusEl, "Select or type Entity for unique Excel A sheet.", "bad");
+    showCmpNotice("Select or type Entity for unique Excel A sheet.", "bad");
     return;
   }
-  if (!checkedValues(cmpEntityUniqueBEl).length) {
-    setStatus(cmpStatusEl, "Select Entity for unique Excel B sheet.", "bad");
-    showCmpNotice("Select Entity for unique Excel B sheet.", "bad");
+  if (!sheetEntities(cmpEntityUniqueBEl, cmpEntityCustomUniqueBEl).length) {
+    setStatus(cmpStatusEl, "Select or type Entity for unique Excel B sheet.", "bad");
+    showCmpNotice("Select or type Entity for unique Excel B sheet.", "bad");
     return;
   }
   if (!cmpFileAEl || (!cmpFileAEl.files[0] && !(cmpExistingAEl && cmpExistingAEl.value))) {
@@ -1054,6 +1391,16 @@ async function runCompare(path, generated) {
   if (!cmpFileBEl || (!cmpFileBEl.files[0] && !(cmpExistingBEl && cmpExistingBEl.value))) {
     setStatus(cmpStatusEl, "Choose Excel B.", "bad");
     showCmpNotice("Choose Excel B.", "bad");
+    return;
+  }
+  if (cmpSheetFieldAEl && !cmpSheetFieldAEl.classList.contains("hidden") && !(cmpSheetAEl && cmpSheetAEl.value)) {
+    setStatus(cmpStatusEl, "Choose which sheet to use for Excel A.", "bad");
+    showCmpNotice("Choose which sheet to use for Excel A.", "bad");
+    return;
+  }
+  if (cmpSheetFieldBEl && !cmpSheetFieldBEl.classList.contains("hidden") && !(cmpSheetBEl && cmpSheetBEl.value)) {
+    setStatus(cmpStatusEl, "Choose which sheet to use for Excel B.", "bad");
+    showCmpNotice("Choose which sheet to use for Excel B.", "bad");
     return;
   }
 
@@ -1092,6 +1439,264 @@ async function runCompare(path, generated) {
 
 if (tabMap) tabMap.addEventListener("click", () => setView("map"));
 if (tabCompare) tabCompare.addEventListener("click", () => setView("compare"));
+if (tabEp) tabEp.addEventListener("click", () => setView("ep"));
+
+function showEpNotice(message, kind) {
+  if (!epNoticeEl) return;
+  if (!message) {
+    epNoticeEl.classList.add("hidden");
+    epNoticeEl.textContent = "";
+    return;
+  }
+  epNoticeEl.classList.remove("hidden", "ok", "warn", "bad");
+  epNoticeEl.classList.add(kind || "bad");
+  epNoticeEl.innerHTML = `<strong>${escapeHtml(message)}</strong>`;
+}
+
+function updateEpSheetNamePreview() {
+  if (!epOutputSheetPreviewEl) return;
+  const m = (epModuleCustomEl && epModuleCustomEl.value.trim()) || (epModuleEl && epModuleEl.value.trim()) || "";
+  const e = (epEntityCustomEl && epEntityCustomEl.value.trim()) || (epEntityEl && epEntityEl.value.trim()) || "";
+  let name = "Sheet1";
+  if (m && e) name = `${m} ${e}`;
+  else if (e) name = e;
+  else if (m) name = m;
+  epOutputSheetPreviewEl.textContent = name.slice(0, 31);
+}
+
+function formatIsoDate(isoStr, fmt) {
+  if (!isoStr) return "";
+  const parts = isoStr.split("-");
+  if (parts.length !== 3) return isoStr;
+  const y = parts[0];
+  const m = parts[1];
+  const d = parts[2];
+  switch (fmt) {
+    case "dd/mm/yyyy":
+      return `${d}/${m}/${y}`;
+    case "m/d/yyyy":
+      return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y}`;
+    case "yyyy/mm/dd":
+      return `${y}/${m}/${d}`;
+    case "mm/dd/yyyy":
+    default:
+      return `${m}/${d}/${y}`;
+  }
+}
+
+function clearEpResults() {
+  if (epResultEl) epResultEl.classList.add("hidden");
+  if (epResultMessageEl) epResultMessageEl.textContent = "";
+  if (epResultLinksEl) epResultLinksEl.innerHTML = "";
+  if (epStatsEl) {
+    epStatsEl.classList.add("hidden");
+    epStatsEl.innerHTML = "";
+  }
+}
+
+function resetEpForm() {
+  if (epSummaryFileEl) epSummaryFileEl.value = "";
+  if (epExistingSummaryEl) epExistingSummaryEl.value = "";
+  if (epSheetFieldEl) epSheetFieldEl.classList.add("hidden");
+  if (epSheetSelectEl) epSheetSelectEl.innerHTML = '<option value="">-- Choose sheet --</option>';
+  if (epProjectIdEl) epProjectIdEl.value = "5";
+  if (epModuleEl) epModuleEl.value = "";
+  if (epModuleCustomEl) epModuleCustomEl.value = "";
+  if (epEntityEl) epEntityEl.value = "";
+  if (epEntityCustomEl) epEntityCustomEl.value = "";
+  if (epVersionEl) epVersionEl.value = "v1.0";
+  if (epExecutionTypeEl) epExecutionTypeEl.value = "Manual";
+  if (epAssignedDateEl) epAssignedDateEl.value = "";
+  if (epDatePickerEl) epDatePickerEl.value = "";
+  if (epDateFormatEl) epDateFormatEl.value = "mm/dd/yyyy";
+  if (epAssigneeEmailEl) epAssigneeEmailEl.value = "";
+  if (epSourceUploadRadio) epSourceUploadRadio.checked = true;
+  if (epUploadSection) epUploadSection.classList.remove("hidden");
+  if (epLiveSection) epLiveSection.classList.add("hidden");
+  showEpNotice("");
+  clearEpResults();
+  updateEpSheetNamePreview();
+  setStatus(epStatusEl, "Form reset.", "ok");
+}
+
+function epFormData() {
+  const fd = new FormData();
+  const mode = epSourceLiveRadio && epSourceLiveRadio.checked ? "live" : "upload";
+  fd.append("mode", mode);
+
+  if (mode === "upload") {
+    if (epSummaryFileEl && epSummaryFileEl.files && epSummaryFileEl.files[0]) {
+      fd.append("summary", epSummaryFileEl.files[0]);
+    }
+    if (epExistingSummaryEl && epExistingSummaryEl.value) {
+      fd.append("existingSummary", epExistingSummaryEl.value);
+    }
+    if (epSheetSelectEl && epSheetSelectEl.value) {
+      fd.append("summarySheet", epSheetSelectEl.value);
+    }
+  } else {
+    fd.append("projectId", (epProjectIdEl && epProjectIdEl.value) || "5");
+  }
+
+  if (epModuleEl && epModuleEl.value) fd.append("module", epModuleEl.value);
+  if (epModuleCustomEl && epModuleCustomEl.value) fd.append("moduleCustom", epModuleCustomEl.value.trim());
+  if (epEntityEl && epEntityEl.value) fd.append("entity", epEntityEl.value);
+  if (epEntityCustomEl && epEntityCustomEl.value) fd.append("entityCustom", epEntityCustomEl.value.trim());
+  if (epVersionEl && epVersionEl.value) fd.append("version", epVersionEl.value.trim());
+  if (epExecutionTypeEl && epExecutionTypeEl.value) fd.append("executionType", epExecutionTypeEl.value);
+  if (epAssignedDateEl && epAssignedDateEl.value) fd.append("assignedDate", epAssignedDateEl.value.trim());
+  if (epDateFormatEl && epDateFormatEl.value) fd.append("dateFormat", epDateFormatEl.value);
+  if (epAssigneeEmailEl && epAssigneeEmailEl.value) fd.append("assigneeEmail", epAssigneeEmailEl.value.trim());
+
+  return fd;
+}
+
+async function runEp(url, isGenerate) {
+  showEpNotice("");
+  setStatus(epStatusEl, isGenerate ? "Generating Execution Plan Excel…" : "Reviewing test cases…");
+  clearEpResults();
+  if (epGenerateBtn) epGenerateBtn.disabled = true;
+  if (epReviewBtn) epReviewBtn.disabled = true;
+
+  try {
+    const fd = epFormData();
+    const data = await apiFetch(url, { method: "POST", body: fd });
+    if (!data.ok) {
+      showEpNotice(data.message || "Execution Plan mapping failed.", "bad");
+      setStatus(epStatusEl, data.message || "Failed.", "bad");
+      return;
+    }
+
+    setStatus(epStatusEl, isGenerate ? "Execution Plan Excel generated." : "Review completed.", "ok");
+
+    if (data.summary) {
+      if (epStatsEl) {
+        epStatsEl.classList.remove("hidden");
+        epStatsEl.innerHTML = `
+          <div class="stat"><span class="val">${data.summary.testcaseCount || 0}</span><span class="lbl">Test Cases</span></div>
+          <div class="stat"><span class="val">${escapeHtml(data.summary.sheetName || "-")}</span><span class="lbl">Sheet Name</span></div>
+          <div class="stat"><span class="val">${escapeHtml(data.summary.version || "v1.0")}</span><span class="lbl">Version</span></div>
+          <div class="stat"><span class="val">${escapeHtml(data.summary.executionType || "Manual")}</span><span class="lbl">Type</span></div>
+          ${data.summary.assignedDate ? `<div class="stat"><span class="val">${escapeHtml(data.summary.assignedDate)}</span><span class="lbl">Date</span></div>` : ""}
+        `;
+      }
+    }
+
+    if (data.preview) {
+      renderPreview(data.preview, `Execution Plan: ${data.summary.sheetName}`);
+      if (previewPanelEl) {
+        previewPanelEl.classList.remove("hidden");
+        previewPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    if (isGenerate && data.download) {
+      if (epResultEl) epResultEl.classList.remove("hidden");
+      if (epResultMessageEl) {
+        epResultMessageEl.textContent = `Generated ${data.summary.testcaseCount} test case(s) into Execution Plan sheet "${data.summary.sheetName}".`;
+      }
+      if (epResultLinksEl) {
+        let links = "";
+        if (data.download.excel) {
+          links += `<a href="${data.download.excel}">Download EP Excel</a>`;
+        }
+        if (data.download.log) {
+          links += `<a href="${data.download.log}">Download log</a>`;
+        }
+        links += `<button type="button" class="linkish" id="epOpenExcelBtn">Open in Excel</button>`;
+        epResultLinksEl.innerHTML = links;
+
+        const openBtn = document.getElementById("epOpenExcelBtn");
+        if (openBtn) {
+          openBtn.addEventListener("click", async () => {
+            await fetch("/api/launch-excel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ file: data.summary.outName }),
+            });
+          });
+        }
+      }
+      loadHistory();
+    }
+  } catch (err) {
+    showEpNotice(err.message || "Failed to process Execution Plan.", "bad");
+    setStatus(epStatusEl, err.message || "Failed.", "bad");
+  } finally {
+    if (epGenerateBtn) epGenerateBtn.disabled = false;
+    if (epReviewBtn) epReviewBtn.disabled = false;
+  }
+}
+
+// EP Event Listeners
+if (epSourceUploadRadio && epSourceLiveRadio) {
+  epSourceUploadRadio.addEventListener("change", () => {
+    if (epUploadSection) epUploadSection.classList.remove("hidden");
+    if (epLiveSection) epLiveSection.classList.add("hidden");
+  });
+  epSourceLiveRadio.addEventListener("change", () => {
+    if (epUploadSection) epUploadSection.classList.add("hidden");
+    if (epLiveSection) epLiveSection.classList.remove("hidden");
+  });
+}
+
+if (epSummaryFileEl) {
+  epSummaryFileEl.addEventListener("change", () => {
+    onXlsxChosen(epSummaryFileEl, "Summary Excel");
+    if (epSummaryFileEl.files[0] && epExistingSummaryEl) epExistingSummaryEl.value = "";
+  });
+}
+if (epExistingSummaryEl) {
+  epExistingSummaryEl.addEventListener("change", () => {
+    if (epExistingSummaryEl.value && epSummaryFileEl) epSummaryFileEl.value = "";
+  });
+}
+
+if (epDatePickerEl && epAssignedDateEl && epDateFormatEl) {
+  epDatePickerEl.addEventListener("change", () => {
+    if (epDatePickerEl.value) {
+      epAssignedDateEl.value = formatIsoDate(epDatePickerEl.value, epDateFormatEl.value);
+    }
+  });
+  epDateFormatEl.addEventListener("change", () => {
+    if (epDatePickerEl.value) {
+      epAssignedDateEl.value = formatIsoDate(epDatePickerEl.value, epDateFormatEl.value);
+    }
+  });
+}
+
+[epModuleEl, epModuleCustomEl, epEntityEl, epEntityCustomEl].forEach((el) => {
+  if (el) {
+    el.addEventListener("input", updateEpSheetNamePreview);
+    el.addEventListener("change", updateEpSheetNamePreview);
+  }
+});
+
+if (resetEpBtn) resetEpBtn.addEventListener("click", resetEpForm);
+if (epReloadPropsBtn) {
+  epReloadPropsBtn.addEventListener("click", () => loadProperties({ applyEpProps: true }));
+}
+
+if (epForm) {
+  epForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    runEp("/api/ep/generate", true);
+  });
+}
+if (epGenerateBtn) {
+  epGenerateBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    runEp("/api/ep/generate", true);
+  });
+}
+if (epReviewBtn) {
+  epReviewBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    runEp("/api/ep/review", false);
+  });
+}
+
+bindDropzone(document.getElementById("epSummaryDrop"), epSummaryFileEl);
 const cmpNextBtn = document.getElementById("cmpNextBtn");
 const cmpBackBtn = document.getElementById("cmpBackBtn");
 const cmpWizardTab1 = document.getElementById("cmpWizardTab1");
@@ -1138,15 +1743,43 @@ if (document.getElementById("compareForm")) {
 }
 setCompareStep(1);
 if (document.getElementById("cmpReloadFormBtn")) {
-  document.getElementById("cmpReloadFormBtn").addEventListener("click", loadProperties);
+  document.getElementById("cmpReloadFormBtn").addEventListener("click", () =>
+    loadProperties({ applyMapEntity: true, applyCompareEntity: true })
+  );
 }
+const resetCompareBtn = document.getElementById("resetCompareBtn");
+if (resetCompareBtn) resetCompareBtn.addEventListener("click", resetCompareForm);
 if (document.getElementById("cmpSaveMapBtn")) {
   document.getElementById("cmpSaveMapBtn").addEventListener("click", () => {
     saveCompareMapping().catch((err) => setStatus(cmpStatusEl, err.message || String(err), "bad"));
   });
 }
-if (cmpFileAEl) cmpFileAEl.addEventListener("change", () => onCmpXlsxChosen(cmpFileAEl));
-if (cmpFileBEl) cmpFileBEl.addEventListener("change", () => onCmpXlsxChosen(cmpFileBEl));
+if (cmpFileAEl) {
+  cmpFileAEl.addEventListener("change", () => {
+    onCmpXlsxChosen(cmpFileAEl);
+    if (cmpFileAEl.files[0] && cmpExistingAEl) cmpExistingAEl.value = "";
+    refreshCmpClientSheets("A");
+  });
+}
+if (cmpFileBEl) {
+  cmpFileBEl.addEventListener("change", () => {
+    onCmpXlsxChosen(cmpFileBEl);
+    if (cmpFileBEl.files[0] && cmpExistingBEl) cmpExistingBEl.value = "";
+    refreshCmpClientSheets("B");
+  });
+}
+if (cmpExistingAEl) {
+  cmpExistingAEl.addEventListener("change", () => {
+    if (cmpExistingAEl.value && cmpFileAEl) cmpFileAEl.value = "";
+    refreshCmpClientSheets("A");
+  });
+}
+if (cmpExistingBEl) {
+  cmpExistingBEl.addEventListener("change", () => {
+    if (cmpExistingBEl.value && cmpFileBEl) cmpFileBEl.value = "";
+    refreshCmpClientSheets("B");
+  });
+}
 if (cmpKenyaFileEl) {
   cmpKenyaFileEl.addEventListener("change", () => {
     onCmpXlsxChosen(cmpKenyaFileEl);
@@ -1174,6 +1807,120 @@ fillEntityChecks(FALLBACK_ENTITIES);
 function resetMapperHeaderSelect(selectEl) {
   if (!selectEl) return;
   selectEl.innerHTML = `<option value="">Pre-Requisite (default)</option>`;
+}
+
+function hideClientSheetPicker() {
+  if (clientSheetEl) {
+    clientSheetEl.innerHTML = `<option value="">-- Choose sheet --</option>`;
+    clientSheetEl.value = "";
+  }
+  if (clientSheetFieldEl) clientSheetFieldEl.classList.add("hidden");
+  if (clientSheetHintEl) clientSheetHintEl.classList.add("hidden");
+}
+
+function hideCmpSheetPicker(side) {
+  const sheetEl = side === "B" ? cmpSheetBEl : cmpSheetAEl;
+  const fieldEl = side === "B" ? cmpSheetFieldBEl : cmpSheetFieldAEl;
+  const hintEl = side === "B" ? cmpSheetHintBEl : cmpSheetHintAEl;
+  if (sheetEl) {
+    sheetEl.innerHTML = `<option value="">-- Choose sheet --</option>`;
+    sheetEl.value = "";
+  }
+  if (fieldEl) fieldEl.classList.add("hidden");
+  if (hintEl) hintEl.classList.add("hidden");
+}
+
+async function refreshCmpClientSheets(side) {
+  const label = side === "B" ? "Excel B" : "Excel A";
+  const fileEl = side === "B" ? cmpFileBEl : cmpFileAEl;
+  const existingEl = side === "B" ? cmpExistingBEl : cmpExistingAEl;
+  const sheetEl = side === "B" ? cmpSheetBEl : cmpSheetAEl;
+  const fieldEl = side === "B" ? cmpSheetFieldBEl : cmpSheetFieldAEl;
+  const hintEl = side === "B" ? cmpSheetHintBEl : cmpSheetHintAEl;
+  if (!sheetEl || !fieldEl) return;
+
+  const hasFile = fileEl && fileEl.files && fileEl.files[0];
+  const existing = existingEl && existingEl.value;
+  if (!hasFile && !existing) {
+    hideCmpSheetPicker(side);
+    return;
+  }
+
+  const fd = new FormData();
+  if (hasFile) fd.append("client", fileEl.files[0]);
+  else fd.append("existingClient", existing);
+
+  try {
+    const data = await apiFetch("/api/client-sheets", { method: "POST", body: fd });
+    const sheets = (data && data.sheets) || [];
+    sheetEl.innerHTML = `<option value="">-- Choose sheet --</option>`;
+    for (const name of sheets) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      sheetEl.appendChild(opt);
+    }
+    if (sheets.length >= 2) {
+      fieldEl.classList.remove("hidden");
+      if (hintEl) hintEl.classList.remove("hidden");
+      window.alert(
+        `${label} has ${sheets.length} sheets: ${sheets.join(", ")}.\n\nChoose which sheet to compare.`
+      );
+      showCmpNotice(`${label} has ${sheets.length} sheets. Choose the sheet to compare.`, "warn");
+      const statusEl = document.getElementById("cmpStep1Status");
+      if (statusEl) setStatus(statusEl, `Choose ${label} sheet.`, "bad");
+    } else {
+      if (sheets.length === 1) sheetEl.value = sheets[0];
+      fieldEl.classList.add("hidden");
+      if (hintEl) hintEl.classList.add("hidden");
+    }
+  } catch (err) {
+    hideCmpSheetPicker(side);
+    showCmpNotice(err.message || `Could not read ${label} sheets.`, "bad");
+  }
+}
+
+async function refreshClientSheets() {
+  if (!clientSheetEl || !clientSheetFieldEl) return;
+  const hasFile = clientFileEl && clientFileEl.files && clientFileEl.files[0];
+  const existing = existingClientEl && existingClientEl.value;
+  if (!hasFile && !existing) {
+    hideClientSheetPicker();
+    return;
+  }
+
+  const fd = new FormData();
+  if (hasFile) fd.append("client", clientFileEl.files[0]);
+  else fd.append("existingClient", existing);
+
+  try {
+    const data = await apiFetch("/api/client-sheets", { method: "POST", body: fd });
+    const sheets = (data && data.sheets) || [];
+    clientSheetEl.innerHTML = `<option value="">-- Choose sheet --</option>`;
+    for (const name of sheets) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      clientSheetEl.appendChild(opt);
+    }
+    if (sheets.length >= 2) {
+      clientSheetFieldEl.classList.remove("hidden");
+      if (clientSheetHintEl) clientSheetHintEl.classList.remove("hidden");
+      const msg = `This client file has ${sheets.length} sheets: ${sheets.join(
+        ", "
+      )}.\n\nChoose which sheet to map.`;
+      window.alert(msg);
+      showUploadNotice(`This file has ${sheets.length} sheets. Choose the sheet to map.`, "warn");
+      setStatus(runStatusEl, "Choose a client sheet.", "bad");
+    } else {
+      if (sheets.length === 1) clientSheetEl.value = sheets[0];
+      clientSheetFieldEl.classList.add("hidden");
+      if (clientSheetHintEl) clientSheetHintEl.classList.add("hidden");
+    }
+  } catch (err) {
+    hideClientSheetPicker();
+    showUploadNotice(err.message || "Could not read client sheets.", "bad");
+  }
 }
 
 function fillMapperHeaderSelect(selectEl, data) {
@@ -1280,6 +2027,123 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) checkServerStatus();
 });
 
+function setAuthEditVisible(visible, { allowCancel = true } = {}) {
+  if (authEditBlockEl) authEditBlockEl.classList.toggle("hidden", !visible);
+  if (authReadyActionsEl) authReadyActionsEl.classList.toggle("hidden", visible);
+  if (cancelAuthBtn) cancelAuthBtn.classList.toggle("hidden", !allowCancel);
+}
+
+function applyAuthStatus(data, { justSaved = false } = {}) {
+  if (!authStatusHintEl) return;
+  authStatusHintEl.classList.remove("ok", "bad", "warn");
+
+  if (!data.present) {
+    authStatusHintEl.textContent = "No token set — paste your SimplifyQA bearer token below.";
+    authStatusHintEl.classList.add("bad");
+    if (authTokenLabelEl) authTokenLabelEl.textContent = "SimplifyQA bearer token";
+    if (saveAuthBtn) saveAuthBtn.textContent = "Save token";
+    setAuthEditVisible(true, { allowCancel: false });
+    setStatus(authStatusEl, "");
+    return;
+  }
+
+  if (data.expired) {
+    authStatusHintEl.textContent = "Token expired — paste a fresh bearer token below.";
+    authStatusHintEl.classList.add("bad");
+    if (authTokenLabelEl) authTokenLabelEl.textContent = "New SimplifyQA bearer token";
+    if (saveAuthBtn) saveAuthBtn.textContent = "Update token";
+    setAuthEditVisible(true, { allowCancel: false });
+    setStatus(authStatusEl, "");
+    return;
+  }
+
+  authStatusHintEl.textContent = justSaved
+    ? "Token saved and ready."
+    : data.expiresInMs != null
+      ? data.message
+      : "Token ready.";
+
+  if (data.expiresInMs != null && data.expiresInMs < 60 * 60 * 1000) {
+    authStatusHintEl.classList.add("warn");
+  } else {
+    authStatusHintEl.classList.add("ok");
+  }
+  if (authTokenLabelEl) authTokenLabelEl.textContent = "New SimplifyQA bearer token";
+  if (saveAuthBtn) saveAuthBtn.textContent = "Update token";
+  setAuthEditVisible(false);
+  setStatus(
+    authStatusEl,
+    justSaved ? "Applied immediately — no restart needed." : "",
+    justSaved ? "ok" : undefined
+  );
+}
+
+async function loadAuthStatus() {
+  if (!authStatusHintEl) return;
+  authStatusHintEl.classList.remove("ok", "bad", "warn");
+  authStatusHintEl.textContent = "Checking token…";
+  try {
+    const data = await apiFetch("/api/auth/status");
+    if (!data.ok) {
+      authStatusHintEl.textContent = data.message || "Could not read token status.";
+      authStatusHintEl.classList.add("bad");
+      setAuthEditVisible(true, { allowCancel: false });
+      return;
+    }
+    applyAuthStatus(data);
+  } catch (err) {
+    authStatusHintEl.textContent = err.message || "Could not read token status.";
+    authStatusHintEl.classList.add("bad");
+    setAuthEditVisible(true, { allowCancel: false });
+  }
+}
+
+if (changeAuthBtn) {
+  changeAuthBtn.addEventListener("click", () => {
+    if (authTokenInputEl) authTokenInputEl.value = "";
+    setStatus(authStatusEl, "");
+    setAuthEditVisible(true, { allowCancel: true });
+  });
+}
+
+if (cancelAuthBtn) {
+  cancelAuthBtn.addEventListener("click", () => {
+    if (authTokenInputEl) authTokenInputEl.value = "";
+    setStatus(authStatusEl, "");
+    setAuthEditVisible(false);
+  });
+}
+
+if (saveAuthBtn) {
+  saveAuthBtn.addEventListener("click", async () => {
+    const token = (authTokenInputEl && authTokenInputEl.value.trim()) || "";
+    if (!token) {
+      setStatus(authStatusEl, "Paste a token first.", "bad");
+      return;
+    }
+    setStatus(authStatusEl, "Saving…");
+    saveAuthBtn.disabled = true;
+    try {
+      const res = await fetch("/api/auth/token", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(authStatusEl, data.message || "Save failed.", "bad");
+        return;
+      }
+      if (authTokenInputEl) authTokenInputEl.value = "";
+      applyAuthStatus(data, { justSaved: true });
+    } catch (err) {
+      setStatus(authStatusEl, err.message || String(err), "bad");
+    } finally {
+      saveAuthBtn.disabled = false;
+    }
+  });
+}
+
 loadConfig().catch((err) => {
   showServerBanner(false, err.message || String(err));
   setStatus(runStatusEl, err.message || String(err), "bad");
@@ -1287,3 +2151,4 @@ loadConfig().catch((err) => {
 });
 loadProperties().catch((err) => setStatus(propsStatusEl, err.message || String(err), "bad"));
 loadHistory().catch(() => {});
+loadAuthStatus().catch(() => {});
