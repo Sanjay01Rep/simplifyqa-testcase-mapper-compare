@@ -177,8 +177,8 @@ function writeVersion(version) {
     fs.writeFileSync(
       START_HERE_PATH,
       md.replace(
-        /ICEA LION Testcase Review UI  v\d+\.\d+\.\d+/,
-        `ICEA LION Testcase Review UI  v${version}`
+        /ICEA LION Test Management Hub UI  v\d+\.\d+\.\d+|QA Testcase Review & Reporting Suite UI  v\d+\.\d+\.\d+|ICEA LION Testcase Review UI  v\d+\.\d+\.\d+/,
+        `ICEA LION Test Management Hub UI  v${version}`
       )
     );
   }

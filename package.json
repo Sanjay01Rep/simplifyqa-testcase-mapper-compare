@@ -1,7 +1,7 @@
 {
-  "name": "simplifyqa-testcase-mapper-compare",
-  "version": "1.2.0",
-  "description": "ICEA LION QA tool: map client testcases to SimplifyQA Excel and compare Gen UG vs Life UG workbooks",
+  "name": "icea-lion-test-management-hub",
+  "version": "1.3.0",
+  "description": "ICEA LION Test Management Hub: Map client testcases to SimplifyQA Excel, compare workbooks, generate Execution Plans (EP), and ICEA LION reporting suite",
   "main": "server.js",
   "repository": {
     "type": "git",
@@ -32,9 +32,13 @@
     "node": ">=18"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "mammoth": "^1.9.0",
     "multer": "^2.0.1",
+    "nodemailer": "^9.0.5",
+    "pdfkit": "^0.19.1",
+    "pngjs": "^7.0.0",
     "xlsx": "^0.18.5"
   }
 }

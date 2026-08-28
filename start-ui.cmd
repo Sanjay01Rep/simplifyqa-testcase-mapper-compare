@@ -1,8 +1,8 @@
 @echo off
 cd /d "%~dp0"
-title ICEA LION Testcase Review
+title ICEA LION Test Management Hub
 echo.
-echo Starting ICEA LION Testcase Review...
+echo Starting ICEA LION Test Management Hub...
 echo Open: http://localhost:3100
 echo Do not use Live Preview. Keep this window open. Press Ctrl+C to stop.
 echo.

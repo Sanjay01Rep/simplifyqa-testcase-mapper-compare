@@ -6,14 +6,20 @@ node_modules/
 .env.*
 !.env.example
 
-# Local run config (committed template: mapping.properties.example)
+# Local run config (committed templates: mapping.properties.example, config/application.properties.example)
 mapping.properties
+config/application.properties
 
 # Local / generated outputs
 Generated Excel file/
 Client doc/
 Kenya doc/
 Kenya orginial testcase/
+downloads/
+output/
+logs/
+.playwright-mcp/
+agent-tools/
 ~$*.xlsx
 *.tmp
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ICEA LION Testcase Review</title>
+    <title>ICEA LION Test Management Hub</title>
     <link rel="icon" type="image/png" href="/logo/Simplify.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -11,15 +11,15 @@
       href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=1.2.4" />
+    <link rel="stylesheet" href="/styles.css?v=1.3.0" />
   </head>
   <body>
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand-lockup">
-          <img id="logoLeft" class="logo icea" src="/logo/ICEA%20Lion.png" alt="ICEA LION" />
+          <img id="logoLeft" class="logo icea" src="/logo/ICEA%20Lion.png" alt="Logo" />
           <div class="brand-text">
-            <h1>ICEA LION Testcase Review</h1>
+            <h1>ICEA LION Test Management Hub</h1>
             <p>Review client cases, map Pre-Requisites from a mapper file, export SimplifyQA Excel</p>
           </div>
         </div>
@@ -34,7 +34,7 @@
             <span class="server-bot-icon" aria-hidden="true">🤖</span>
             <span class="server-bot-text" id="serverBotText">Checking…</span>
           </button>
-          <span class="version-badge" id="appVersion" title="App version">v1.2.0</span>
+          <span class="version-badge" id="appVersion" title="App version">v1.3.0</span>
           <img id="logoRight" class="logo simplify" src="/logo/Simplify-icon.png" alt="" />
           <span class="simplify-label">Simplify3x</span>
         </div>
@@ -51,6 +51,9 @@
         </button>
         <button type="button" class="module-tab" id="tabEp" data-view="ep" role="tab" aria-selected="false">
           Map EP
+        </button>
+        <button type="button" class="module-tab" id="tabReporter" data-view="reporter" role="tab" aria-selected="false">
+          ICEA LION Reporter
         </button>
       </nav>
 
@@ -416,15 +419,33 @@
             </div>
 
             <div class="grid-2">
+              <div class="field ms-wrapper" id="epModuleMsWrapper">
+                <span>Modules <em class="optional-tag">(multi-select dropdown or all)</em></span>
+                <div class="ms-control" id="epModuleDropdownBtn" tabindex="0" role="combobox" aria-expanded="false">
+                  <div class="ms-display" id="epModuleDisplay">-- All modules (or pick multiple) --</div>
+                  <span class="ms-arrow" id="epModuleArrow" aria-hidden="true">▾</span>
+                </div>
+
+                <div class="ms-menu hidden" id="epModuleMenu">
+                  <div class="ms-search-row">
+                    <input type="text" id="epModuleSearch" class="ms-search" placeholder="🔍 Search modules…" autocomplete="off" />
+                  </div>
+                  <div class="ms-actions-row">
+                    <div class="ms-actions-left">
+                      <button type="button" class="btn-text" id="epModuleSelectAll">Select All</button>
+                      <span class="ms-sep">·</span>
+                      <button type="button" class="btn-text" id="epModuleClearAll">Clear All</button>
+                    </div>
+                    <span class="ms-count" id="epModuleCount">All modules</span>
+                  </div>
+                  <div class="ms-list" id="epModuleChecks"></div>
+                </div>
+                <div class="ms-tags hidden" id="epModuleTags"></div>
+              </div>
+
               <label class="field">
-                <span>Module</span>
-                <select id="epModule" name="module">
-                  <option value="">-- All modules (or pick) --</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Custom Module</span>
-                <input id="epModuleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown" autocomplete="off" />
+                <span>Custom Modules</span>
+                <input id="epModuleCustom" name="moduleCustom" type="text" placeholder="Overrides dropdown (comma-separated OK)" autocomplete="off" />
               </label>
             </div>
 
@@ -441,7 +462,10 @@
               </label>
             </div>
 
-            <p class="hint" id="epSheetPreviewHint">Output sheet name: <strong id="epOutputSheetPreview">Sheet1</strong></p>
+            <div class="field">
+              <span class="subtle-label">Execution Plan Output Preview</span>
+              <p class="hint" id="epSheetPreviewHint" style="margin-top: 4px;">Output sheets: <strong id="epOutputSheetPreview">Sheet1</strong></p>
+            </div>
 
             <div class="grid-2">
               <label class="field">
@@ -497,6 +521,216 @@
             <div class="result-links" id="epResultLinks"></div>
           </div>
         </section>
+        </div>
+
+        <div id="viewReporter" class="hidden">
+          <div class="sub-tabs-bar" role="tablist" aria-label="Reporter Sections">
+            <button
+              type="button"
+              class="sub-tab active"
+              id="subTabReporterGenerate"
+              data-subview="generate"
+              role="tab"
+              aria-selected="true"
+            >
+              Generate Report
+            </button>
+            <button
+              type="button"
+              class="sub-tab"
+              id="subTabReporterCompare"
+              data-subview="compare"
+              role="tab"
+              aria-selected="false"
+            >
+              Compare Reports
+            </button>
+            <button
+              type="button"
+              class="sub-tab"
+              id="subTabReporterSchedule"
+              data-subview="schedule"
+              role="tab"
+              aria-selected="false"
+            >
+              Daily Schedule &amp; Properties
+            </button>
+          </div>
+
+          <!-- Section 1: Generate Report -->
+          <div id="subViewReporterGenerate">
+            <section class="panel" aria-labelledby="reporter-heading">
+              <div class="panel-head">
+                <h2 id="reporter-heading">Report Configuration &amp; Generation</h2>
+                <div class="btn-row">
+                  <button type="button" class="btn ghost" id="resetReporterBtn">Reset</button>
+                  <button type="button" class="btn ghost" id="reloadReporterFormBtn">
+                    Load from properties
+                  </button>
+                </div>
+              </div>
+
+              <form id="reporterForm" class="form" autocomplete="off">
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Project *</span>
+                    <select id="reporterProjectId" name="projectId">
+                      <option value="">Uses properties if blank</option>
+                      <option value="2">2 — Financial Management System - Kenya</option>
+                      <option value="5">5 — Financial Management System - Uganda</option>
+                      <option value="custom">Other / Custom Project ID…</option>
+                    </select>
+                    <input
+                      id="reporterProjectIdCustom"
+                      name="projectIdCustom"
+                      type="number"
+                      inputmode="numeric"
+                      placeholder="Enter custom Project ID (e.g. 2)"
+                      autocomplete="off"
+                      class="hidden"
+                      style="margin-top: 0.45rem;"
+                    />
+                  </label>
+
+                  <div class="field">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
+                      <span style="font-size: 0.86rem; font-weight: 600;">Template choice *</span>
+                      <label class="btn ghost" style="padding: 0.18rem 0.55rem; font-size: 0.76rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;">
+                        <input type="file" id="reporterTemplateFileInput" accept=".xlsx" style="display: none;" />
+                        <span>+ Upload template</span>
+                      </label>
+                    </div>
+                    <select id="reporterTemplateChoice" name="templateChoice">
+                      <option value="">Uses properties if blank</option>
+                      <option value="1">1 · Template/FMS Status tracker.xlsx (2 EP blocks)</option>
+                      <option value="2">2 · Template/FMS 4 EP template.xlsx (4 EP blocks)</option>
+                      <option value="3">3 · Template/E2E Report.xlsx (2 E2E blocks)</option>
+                    </select>
+                    <p class="hint template-hint" id="reporterTemplateHint"></p>
+                    <p class="status" id="reporterTemplateUploadStatus" aria-live="polite" style="margin: 0.25rem 0 0; font-size: 0.8rem;"></p>
+                  </div>
+                </div>
+
+                <div class="plans" id="reporterPlansBlock">
+                  <div class="plans-head">
+                    <h3>Execution Plan IDs</h3>
+                    <button type="button" class="btn ghost" id="reporterAddPlanBtn">
+                      + Add plan
+                    </button>
+                  </div>
+                  <div id="reporterPlanFields"></div>
+                  <p class="hint">
+                    Leave blank to use values configured in application.properties.
+                  </p>
+                </div>
+
+                <div class="grid-2">
+                  <label class="check-row">
+                    <input type="checkbox" id="reporterIncludeDefects" checked />
+                    <span>Include defects summary</span>
+                  </label>
+
+                  <label class="check-row">
+                    <input type="checkbox" id="reporterIncludePdf" />
+                    <span>Also generate PDF summary report</span>
+                  </label>
+                </div>
+
+                <ol class="progress-steps hidden" id="reporterProgressSteps">
+                  <li data-step="prepare">Prepare</li>
+                  <li data-step="download_ep">Download plans</li>
+                  <li data-step="fill_status">Fill status</li>
+                  <li data-step="defects">Defects</li>
+                  <li data-step="save">Save Excel</li>
+                  <li data-step="done">Done</li>
+                </ol>
+
+                <div class="actions sticky-actions">
+                  <button type="submit" class="btn primary" id="reporterRunBtn">
+                    Generate Report
+                  </button>
+                  <p class="status" id="reporterRunStatus" aria-live="polite"></p>
+                </div>
+              </form>
+
+              <div class="result hidden" id="reporterResultBox">
+                <h3>Report Result</h3>
+                <p id="reporterResultMessage"></p>
+                <div class="result-links" id="reporterResultLinks"></div>
+                <details id="reporterAlertBanner" class="run-notes hidden" role="status"></details>
+                <details id="reporterLogDetails">
+                  <summary>Run log</summary>
+                  <pre id="reporterLogOutput"></pre>
+                </details>
+              </div>
+            </section>
+          </div>
+
+          <!-- Section 2: Compare Reports -->
+          <div id="subViewReporterCompare" class="hidden">
+            <section class="panel" aria-labelledby="rep-compare-heading">
+              <div class="panel-head">
+                <h2 id="rep-compare-heading">Compare reports</h2>
+                <button type="button" class="btn ghost" id="reporterReloadSheetsBtn">
+                  Load sheets
+                </button>
+              </div>
+              <p class="hint">
+                Select any previous and latest execution sheets from the output workbook to generate a side-by-side delta comparison sheet.
+              </p>
+              <div class="grid-2" style="margin-top: 0.85rem;">
+                <label class="field">
+                  <span>Previous sheet</span>
+                  <select id="reporterComparePrevious"></select>
+                </label>
+                <label class="field">
+                  <span>Latest sheet</span>
+                  <select id="reporterCompareLatest"></select>
+                </label>
+              </div>
+              <div class="actions" style="margin-top: 1rem;">
+                <button type="button" class="btn secondary" id="reporterCompareBtn">
+                  Create compare sheet
+                </button>
+                <p class="status" id="reporterCompareStatus" aria-live="polite"></p>
+              </div>
+            </section>
+          </div>
+
+          <!-- Section 3: Daily Schedule & Application Properties -->
+          <div id="subViewReporterSchedule" class="hidden">
+            <section class="panel" aria-labelledby="rep-schedule-heading">
+              <div class="panel-head">
+                <h2 id="rep-schedule-heading">Daily Schedule</h2>
+                <button type="button" class="btn ghost" id="reporterReloadScheduleBtn">
+                  Refresh
+                </button>
+              </div>
+              <p class="hint" id="reporterScheduleStatus">Loading schedule…</p>
+            </section>
+
+            <section class="panel" style="margin-top: 1rem;" aria-labelledby="rep-props-heading">
+              <details id="reporterPropsDetails" open>
+                <summary class="props-summary">
+                  <h2 id="rep-props-heading">Application Properties (config/application.properties)</h2>
+                  <span class="muted props-toggle">Hide</span>
+                </summary>
+                <div class="panel-head props-actions">
+                  <div class="btn-row">
+                    <button type="button" class="btn ghost" id="reporterReloadPropsBtn">Reload</button>
+                    <button type="button" class="btn secondary" id="reporterSavePropsBtn">Save</button>
+                  </div>
+                </div>
+                <textarea
+                  id="reporterPropertiesText"
+                  spellcheck="false"
+                  aria-label="application.properties contents"
+                  rows="12"
+                ></textarea>
+                <p class="status" id="reporterPropsStatus" aria-live="polite"></p>
+              </details>
+            </section>
+          </div>
         </div>
         </div>
 
@@ -616,6 +850,6 @@
         </p>
       </footer>
     </div>
-    <script src="/app.js?v=1.2.4"></script>
+    <script src="/app.js?v=1.3.0"></script>
   </body>
 </html>

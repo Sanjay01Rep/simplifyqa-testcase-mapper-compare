@@ -1,6 +1,6 @@
-# ICEA LION Testcase Review — How to unzip, set up, and run
+# ICEA LION Test Management Hub — Review & Verification Guide
 
-Windows guide for managers and reviewers who received **`ICEA-Lion-Testcase-Review-share.zip`**.
+Windows guide for managers and reviewers who received **`ICEA-Lion-Test-Management-Hub.zip`**.
 
 See **[START-HERE.md](../START-HERE.md)** (same content, at the ZIP root).
 

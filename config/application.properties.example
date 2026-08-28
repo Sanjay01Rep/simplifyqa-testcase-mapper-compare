@@ -1,0 +1,40 @@
+# SimplifyQA FMS Reporter - user inputs
+# Auth token stays in .env (SIMPLIFYQA_BEARER_TOKEN)
+
+PROJECT_ID=2
+
+# ---- Template catalog (add TEMPLATE_3, TEMPLATE_4, ... as needed) ----
+TEMPLATE_1=Template/FMS Status tracker.xlsx
+OUTPUT_FILE_1=output/FMS Status tracker.xlsx
+
+TEMPLATE_2=Template/FMS 4 EP template.xlsx
+OUTPUT_FILE_2=output/FMS 4 EP tracker.xlsx
+
+TEMPLATE_3=Template/E2E Report.xlsx
+OUTPUT_FILE_3=output/E2E Report.xlsx
+
+# Which template to use for this run (also selects matching OUTPUT_FILE_n)
+TEMPLATE_CHOICE=1
+
+# ---- N execution plans (add EXE_PLAN_ID_3, EXE_PLAN_ID_4, ... as needed) ----
+# Numbering must be consecutive starting at 1
+EXE_PLAN_ID_1=5
+EXE_PLAN_ID_2=4
+# EXE_PLAN_ID_3=
+# EXE_PLAN_ID_4=
+
+# Optional: explicit section title per plan (leave blank to auto-map
+# plan order -> status blocks top-to-bottom in the chosen template)
+SECTION_1=
+SECTION_2=
+# SECTION_3=
+# SECTION_4=
+
+# Export API timezone settings
+TIMEZONE=Asia/Calcutta
+OFFSET=-330
+
+# Optional: Windows share of the output folder so other PCs can Open in Excel
+# from the real file (edit mode), not a browser cache copy.
+# Example: \\YOUR-PC-NAME\ICEA-LION-Reporter\output
+# OUTPUT_SHARE_UNC=\\YOUR-PC-NAME\ICEA-LION-Reporter\output

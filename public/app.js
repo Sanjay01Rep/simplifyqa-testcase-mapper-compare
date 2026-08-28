@@ -1,3 +1,4 @@
+// --- DOM Elements: Map Module ---
 const clientFileEl = document.getElementById("clientFile");
 const kenyaFileEl = document.getElementById("kenyaFile");
 const existingClientEl = document.getElementById("existingClient");
@@ -34,6 +35,150 @@ const issueSearchEl = document.getElementById("issueSearch");
 const statsRowEl = document.getElementById("statsRow");
 const runForm = document.getElementById("runForm");
 const uploadNoticeEl = document.getElementById("uploadNotice");
+const resetMapBtn = document.getElementById("resetMapBtn");
+
+// --- DOM Elements: Navigation & Views ---
+const viewMapEl = document.getElementById("viewMap");
+const viewCompareEl = document.getElementById("viewCompare");
+const viewEpEl = document.getElementById("viewEp");
+const tabMap = document.getElementById("tabMap");
+const tabCompare = document.getElementById("tabCompare");
+const tabEp = document.getElementById("tabEp");
+const tabReporter = document.getElementById("tabReporter");
+
+// --- DOM Elements: Compare Module ---
+const cmpFileAEl = document.getElementById("cmpFileA");
+const cmpFileBEl = document.getElementById("cmpFileB");
+const cmpExistingAEl = document.getElementById("cmpExistingA");
+const cmpExistingBEl = document.getElementById("cmpExistingB");
+const cmpSheetAEl = document.getElementById("cmpSheetA");
+const cmpSheetBEl = document.getElementById("cmpSheetB");
+const cmpSheetFieldAEl = document.getElementById("cmpSheetFieldA");
+const cmpSheetFieldBEl = document.getElementById("cmpSheetFieldB");
+const cmpSheetHintAEl = document.getElementById("cmpSheetHintA");
+const cmpSheetHintBEl = document.getElementById("cmpSheetHintB");
+const cmpKenyaFileEl = document.getElementById("cmpKenyaFile");
+const cmpExistingKenyaEl = document.getElementById("cmpExistingKenya");
+const cmpMapperHeaderEl = document.getElementById("cmpMapperHeader");
+const cmpModuleEl = document.getElementById("cmpModule");
+const cmpModuleCustomEl = document.getElementById("cmpModuleCustom");
+const cmpEntityCommonEl = document.getElementById("cmpEntityCommon");
+const cmpEntityUniqueAEl = document.getElementById("cmpEntityUniqueA");
+const cmpEntityUniqueBEl = document.getElementById("cmpEntityUniqueB");
+const cmpEntityCustomCommonEl = document.getElementById("cmpEntityCustomCommon");
+const cmpEntityCustomUniqueAEl = document.getElementById("cmpEntityCustomUniqueA");
+const cmpEntityCustomUniqueBEl = document.getElementById("cmpEntityCustomUniqueB");
+const cmpVersionsEl = document.getElementById("cmpVersions");
+const cmpTypeEl = document.getElementById("cmpType");
+const cmpBtn = document.getElementById("cmpBtn");
+const cmpReviewBtn = document.getElementById("cmpReviewBtn");
+const cmpProgressStepsEl = document.getElementById("cmpProgressSteps");
+const cmpStatusEl = document.getElementById("cmpStatus");
+const cmpStatsEl = document.getElementById("cmpStats");
+const cmpResultEl = document.getElementById("cmpResult");
+const cmpResultMessageEl = document.getElementById("cmpResultMessage");
+const cmpResultLinksEl = document.getElementById("cmpResultLinks");
+const cmpLogOutputEl = document.getElementById("cmpLogOutput");
+const cmpNoticeEl = document.getElementById("cmpNotice");
+const cmpPreviewPanelEl = document.getElementById("cmpPreviewPanel");
+const cmpPreviewMetaEl = document.getElementById("cmpPreviewMeta");
+const cmpPreviewTableBody = document.querySelector("#cmpPreviewTable tbody");
+
+// --- DOM Elements: Auth Panel ---
+const authStatusHintEl = document.getElementById("authStatusHint");
+const authReadyActionsEl = document.getElementById("authReadyActions");
+const authEditBlockEl = document.getElementById("authEditBlock");
+const authTokenLabelEl = document.getElementById("authTokenLabel");
+const authTokenInputEl = document.getElementById("authTokenInput");
+const saveAuthBtn = document.getElementById("saveAuthBtn");
+const cancelAuthBtn = document.getElementById("cancelAuthBtn");
+const changeAuthBtn = document.getElementById("changeAuthBtn");
+const authStatusEl = document.getElementById("authStatus");
+
+// --- DOM Elements: Map EP Module ---
+const resetEpBtn = document.getElementById("resetEpBtn");
+const epReloadPropsBtn = document.getElementById("epReloadPropsBtn");
+const epForm = document.getElementById("epForm");
+const epNoticeEl = document.getElementById("epNotice");
+const epSourceUploadRadio = document.getElementById("epSourceUploadRadio");
+const epSourceLiveRadio = document.getElementById("epSourceLiveRadio");
+const epUploadSection = document.getElementById("epUploadSection");
+const epLiveSection = document.getElementById("epLiveSection");
+const epSummaryFileEl = document.getElementById("epSummaryFile");
+const epExistingSummaryEl = document.getElementById("epExistingSummary");
+const epSheetFieldEl = document.getElementById("epSheetField");
+const epSheetSelectEl = document.getElementById("epSheetSelect");
+const epProjectIdEl = document.getElementById("epProjectId");
+const epModuleMsWrapper = document.getElementById("epModuleMsWrapper");
+const epModuleDropdownBtn = document.getElementById("epModuleDropdownBtn");
+const epModuleDisplay = document.getElementById("epModuleDisplay");
+const epModuleMenu = document.getElementById("epModuleMenu");
+const epModuleSearch = document.getElementById("epModuleSearch");
+const epModuleSelectAll = document.getElementById("epModuleSelectAll");
+const epModuleClearAll = document.getElementById("epModuleClearAll");
+const epModuleCount = document.getElementById("epModuleCount");
+const epModuleChecksEl = document.getElementById("epModuleChecks");
+const epModuleTags = document.getElementById("epModuleTags");
+const epModuleCustomEl = document.getElementById("epModuleCustom");
+const epEntityEl = document.getElementById("epEntity");
+const epEntityCustomEl = document.getElementById("epEntityCustom");
+const epOutputSheetPreviewEl = document.getElementById("epOutputSheetPreview");
+const epVersionEl = document.getElementById("epVersion");
+const epExecutionTypeEl = document.getElementById("epExecutionType");
+const epAssignedDateEl = document.getElementById("epAssignedDate");
+const epDatePickerEl = document.getElementById("epDatePicker");
+const epDateFormatEl = document.getElementById("epDateFormat");
+const epAssigneeEmailEl = document.getElementById("epAssigneeEmail");
+const epReviewBtn = document.getElementById("epReviewBtn");
+const epGenerateBtn = document.getElementById("epGenerateBtn");
+const epStatusEl = document.getElementById("epStatus");
+const epStatsEl = document.getElementById("epStats");
+const epResultEl = document.getElementById("epResult");
+const epResultMessageEl = document.getElementById("epResultMessage");
+const epResultLinksEl = document.getElementById("epResultLinks");
+
+// --- DOM Elements: Reporter Module ---
+const viewReporterEl = document.getElementById("viewReporter");
+const subTabReporterGenerate = document.getElementById("subTabReporterGenerate");
+const subTabReporterCompare = document.getElementById("subTabReporterCompare");
+const subTabReporterSchedule = document.getElementById("subTabReporterSchedule");
+const subViewReporterGenerate = document.getElementById("subViewReporterGenerate");
+const subViewReporterCompare = document.getElementById("subViewReporterCompare");
+const subViewReporterSchedule = document.getElementById("subViewReporterSchedule");
+const reporterProjectIdEl = document.getElementById("reporterProjectId");
+const reporterProjectIdCustomEl = document.getElementById("reporterProjectIdCustom");
+const reporterTemplateChoiceEl = document.getElementById("reporterTemplateChoice");
+const reporterTemplateFileInput = document.getElementById("reporterTemplateFileInput");
+const reporterTemplateUploadStatus = document.getElementById("reporterTemplateUploadStatus");
+const reporterTemplateHintEl = document.getElementById("reporterTemplateHint");
+const reporterPlansBlockEl = document.getElementById("reporterPlansBlock");
+const reporterPlanFieldsEl = document.getElementById("reporterPlanFields");
+const reporterAddPlanBtn = document.getElementById("reporterAddPlanBtn");
+const reporterIncludeDefectsEl = document.getElementById("reporterIncludeDefects");
+const reporterIncludePdfEl = document.getElementById("reporterIncludePdf");
+const reporterProgressStepsEl = document.getElementById("reporterProgressSteps");
+const reporterRunBtn = document.getElementById("reporterRunBtn");
+const reporterRunStatusEl = document.getElementById("reporterRunStatus");
+const reporterResultBoxEl = document.getElementById("reporterResultBox");
+const reporterResultMessageEl = document.getElementById("reporterResultMessage");
+const reporterResultLinksEl = document.getElementById("reporterResultLinks");
+const reporterAlertBannerEl = document.getElementById("reporterAlertBanner");
+const reporterLogDetailsEl = document.getElementById("reporterLogDetails");
+const reporterLogOutputEl = document.getElementById("reporterLogOutput");
+const reporterReloadSheetsBtn = document.getElementById("reporterReloadSheetsBtn");
+const reporterComparePreviousEl = document.getElementById("reporterComparePrevious");
+const reporterCompareLatestEl = document.getElementById("reporterCompareLatest");
+const reporterCompareBtn = document.getElementById("reporterCompareBtn");
+const reporterCompareStatusEl = document.getElementById("reporterCompareStatus");
+const reporterReloadScheduleBtn = document.getElementById("reporterReloadScheduleBtn");
+const reporterScheduleStatusEl = document.getElementById("reporterScheduleStatus");
+const reporterPropsDetailsEl = document.getElementById("reporterPropsDetails");
+const reporterReloadPropsBtn = document.getElementById("reporterReloadPropsBtn");
+const reporterSavePropsBtn = document.getElementById("reporterSavePropsBtn");
+const reporterPropertiesTextEl = document.getElementById("reporterPropertiesText");
+const reporterPropsStatusEl = document.getElementById("reporterPropsStatus");
+const resetReporterBtn = document.getElementById("resetReporterBtn");
+const reloadReporterFormBtn = document.getElementById("reloadReporterFormBtn");
 
 const XLSX_ONLY_MSG = "Only .xlsx files are supported. Please choose a .xlsx workbook.";
 const STEP_ORDER = ["upload", "review", "prereq", "generate", "done"];
@@ -183,48 +328,164 @@ function fillChoices(select, values, placeholder) {
   }
 }
 
+let allEpModules = [];
+
+function fillEpModuleChecks(modules) {
+  if (!epModuleChecksEl) return;
+  const list = Array.isArray(modules) ? modules.slice() : [];
+  const sorted = Array.from(new Set(list)).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })
+  );
+  allEpModules = sorted;
+  renderEpModuleItems(allEpModules);
+  updateEpMultiSelectUI();
+}
+
+function renderEpModuleItems(modules) {
+  if (!epModuleChecksEl) return;
+  epModuleChecksEl.innerHTML = "";
+  if (!modules.length) {
+    epModuleChecksEl.innerHTML = '<div class="ms-empty">No matching modules</div>';
+    return;
+  }
+  for (const m of modules) {
+    const label = document.createElement("label");
+    label.className = "ms-item" + (m.includes(">") ? " ms-item-sub" : "");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = m;
+    input.name = "epModules";
+    input.addEventListener("change", () => {
+      label.classList.toggle("selected", input.checked);
+      updateEpMultiSelectUI();
+      updateEpSheetNamePreview();
+    });
+    const span = document.createElement("span");
+    span.className = "ms-item-label";
+    span.textContent = m;
+    label.appendChild(input);
+    label.appendChild(span);
+    epModuleChecksEl.appendChild(label);
+  }
+}
+
+function updateEpMultiSelectUI() {
+  const selected = epSelectedModuleCheckValues();
+  const total = allEpModules.length;
+
+  if (epModuleDisplay) {
+    if (selected.length === 0) {
+      epModuleDisplay.textContent = "-- All modules (or pick multiple) --";
+      epModuleDisplay.classList.add("placeholder");
+    } else if (selected.length === 1) {
+      epModuleDisplay.textContent = selected[0];
+      epModuleDisplay.classList.remove("placeholder");
+    } else if (selected.length === total && total > 1) {
+      epModuleDisplay.textContent = `All ${total} modules selected`;
+      epModuleDisplay.classList.remove("placeholder");
+    } else {
+      epModuleDisplay.textContent = `${selected.length} modules selected`;
+      epModuleDisplay.classList.remove("placeholder");
+    }
+  }
+
+  if (epModuleCount) {
+    epModuleCount.textContent = selected.length === 0 ? "All modules" : `${selected.length} of ${total} selected`;
+  }
+
+  if (epModuleTags) {
+    if (selected.length === 0 || selected.length > 8) {
+      epModuleTags.classList.add("hidden");
+      epModuleTags.innerHTML = "";
+    } else {
+      epModuleTags.classList.remove("hidden");
+      epModuleTags.innerHTML = selected
+        .map(
+          (m) =>
+            `<span class="ms-tag">${escapeHtml(m)}<button type="button" class="ms-tag-remove" data-module="${escapeHtml(
+              m
+            )}" title="Remove ${escapeHtml(m)}" aria-label="Remove ${escapeHtml(m)}">×</button></span>`
+        )
+        .join("");
+      epModuleTags.querySelectorAll(".ms-tag-remove").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const modToRemove = btn.getAttribute("data-module");
+          uncheckEpModule(modToRemove);
+        });
+      });
+    }
+  }
+}
+
+function epSelectedModuleCheckValues() {
+  if (!epModuleChecksEl) return [];
+  const inputs = epModuleChecksEl.querySelectorAll('input[type="checkbox"]:checked');
+  return Array.from(inputs).map((i) => i.value);
+}
+
+function uncheckEpModule(name) {
+  if (!epModuleChecksEl) return;
+  const inputs = epModuleChecksEl.querySelectorAll('input[type="checkbox"]');
+  for (const input of inputs) {
+    if (input.value === name) {
+      input.checked = false;
+      if (input.closest(".ms-item")) input.closest(".ms-item").classList.remove("selected");
+      break;
+    }
+  }
+  updateEpMultiSelectUI();
+  updateEpSheetNamePreview();
+}
+
+function epSelectedModules() {
+  const custom = (epModuleCustomEl && epModuleCustomEl.value.trim()) || "";
+  if (custom) return custom.split(",").map((m) => m.trim()).filter(Boolean);
+  return epSelectedModuleCheckValues();
+}
+
 const FALLBACK_MODULES = [
-  "General Ledger",
-  "Cash & Bank Management",
-  "Investment Management",
-  "Investment Management>Investment Receipting",
-  "Payroll",
-  "Payroll>FA Payroll",
-  "Salary Review",
-  "Salary Review>Bonus",
-  "Budgeting",
-  "Accounts Receivable",
-  "Procurement",
-  "Procurement>Inventory",
-  "Credit Control",
   "Accounts Payable",
-  "Inventory Management",
-  "Fixed Assets Management",
-  "Financial Reporting",
-  "Priority Integrations",
-  "Lease",
-  "Reinsurance",
-  "Tax Management",
-  "Expense Management",
+  "Accounts Receivable",
+  "Budgeting",
+  "Cash & Bank Management",
   "Consolidation",
-  "Power BI Reporting",
-  "Integrations",
+  "Credit Control",
   "Data Migration",
   "Data Migration>Data Migration -Functional",
   "Data Migration>Data Migration -Technical",
   "E2E Testcases",
-  "E2E Testcases>E2E Credit Control",
-  "E2E Testcases>E2E General Ledger",
-  "E2E Testcases>E2E Cash & Bank",
   "E2E Testcases>E2E Account Payables",
-  "E2E Testcases>E2E Fixed Assets",
-  "E2E Testcases>E2E Procurement",
-  "E2E Testcases>E2E Budgeting",
-  "E2E Testcases>E2E Expense Management",
   "E2E Testcases>E2E Accounts Receivables",
-  "E2E Testcases>E2E Tax Management",
-  "E2E Testcases>E2E Investment Management",
+  "E2E Testcases>E2E Budgeting",
+  "E2E Testcases>E2E Cash & Bank",
+  "E2E Testcases>E2E Credit Control",
+  "E2E Testcases>E2E Expense Management",
   "E2E Testcases>E2E Financial Reporting",
+  "E2E Testcases>E2E Fixed Assets",
+  "E2E Testcases>E2E General Ledger",
+  "E2E Testcases>E2E Investment Management",
+  "E2E Testcases>E2E Procurement",
+  "E2E Testcases>E2E Tax Management",
+  "Expense Management",
+  "Financial Reporting",
+  "Fixed Assets Management",
+  "General Ledger",
+  "Integrations",
+  "Inventory Management",
+  "Investment Management",
+  "Investment Management>Investment Receipting",
+  "Lease",
+  "Payroll",
+  "Payroll>FA Payroll",
+  "Power BI Reporting",
+  "Priority Integrations",
+  "Procurement",
+  "Procurement>Inventory",
+  "Reinsurance",
+  "Salary Review",
+  "Salary Review>Bonus",
+  "Tax Management",
 ];
 const FALLBACK_ENTITIES = ["Life UG", "Gen UG", "Gen TZ"];
 
@@ -524,7 +785,7 @@ async function loadConfig() {
   applyCompareProps(data.props || {});
   clearMapEntitySelection();
   if (epExistingSummaryEl) fillSelect(epExistingSummaryEl, data.epSampleFiles || [], "Or pick existing sample summary file");
-  if (epModuleEl) fillChoices(epModuleEl, data.modules || FALLBACK_MODULES, "-- All modules (or pick) --");
+  fillEpModuleChecks(data.modules || FALLBACK_MODULES);
   if (epEntityEl) fillChoices(epEntityEl, data.entities || FALLBACK_ENTITIES, "-- All entities (or pick) --");
   updateEpSheetNamePreview();
   const props = data.props || {};
@@ -554,7 +815,7 @@ async function loadProperties(options = {}) {
   else clearMapEntitySelection();
   applyCompareProps(props, { applyCompareEntity: Boolean(options.applyCompareEntity) });
   if (options.applyEpProps) {
-    if (epModuleEl && props.Module) epModuleEl.value = props.Module;
+    if (epModuleChecksEl && props.Module) setCheckedValues(epModuleChecksEl, [props.Module]);
     if (epEntityEl && props.Entity) epEntityEl.value = props.Entity;
     if (epVersionEl && props.Versions) epVersionEl.value = props.Versions;
     updateEpSheetNamePreview();
@@ -812,7 +1073,6 @@ document.getElementById("reloadFormBtn").addEventListener("click", () =>
 document.getElementById("reloadPropsBtn").addEventListener("click", () =>
   loadProperties({ applyMapEntity: true, applyCompareEntity: true })
 );
-const resetMapBtn = document.getElementById("resetMapBtn");
 if (resetMapBtn) resetMapBtn.addEventListener("click", resetMapForm);
 document.getElementById("savePropsBtn").addEventListener("click", saveProperties);
 document.getElementById("reloadHistoryBtn").addEventListener("click", loadHistory);
@@ -853,103 +1113,20 @@ bindDropzone(document.getElementById("kenyaDrop"), kenyaFileEl);
 fillChoices(moduleEl, FALLBACK_MODULES, "-- Select module --");
 fillMapEntityChecks(FALLBACK_ENTITIES);
 
-const viewMapEl = document.getElementById("viewMap");
-const viewCompareEl = document.getElementById("viewCompare");
-const tabMap = document.getElementById("tabMap");
-const tabCompare = document.getElementById("tabCompare");
-const cmpFileAEl = document.getElementById("cmpFileA");
-const cmpFileBEl = document.getElementById("cmpFileB");
-const cmpExistingAEl = document.getElementById("cmpExistingA");
-const cmpExistingBEl = document.getElementById("cmpExistingB");
-const cmpSheetAEl = document.getElementById("cmpSheetA");
-const cmpSheetBEl = document.getElementById("cmpSheetB");
-const cmpSheetFieldAEl = document.getElementById("cmpSheetFieldA");
-const cmpSheetFieldBEl = document.getElementById("cmpSheetFieldB");
-const cmpSheetHintAEl = document.getElementById("cmpSheetHintA");
-const cmpSheetHintBEl = document.getElementById("cmpSheetHintB");
-const cmpKenyaFileEl = document.getElementById("cmpKenyaFile");
-const cmpExistingKenyaEl = document.getElementById("cmpExistingKenya");
-const cmpMapperHeaderEl = document.getElementById("cmpMapperHeader");
-const cmpModuleEl = document.getElementById("cmpModule");
-const cmpModuleCustomEl = document.getElementById("cmpModuleCustom");
-const cmpEntityCommonEl = document.getElementById("cmpEntityCommon");
-const cmpEntityUniqueAEl = document.getElementById("cmpEntityUniqueA");
-const cmpEntityUniqueBEl = document.getElementById("cmpEntityUniqueB");
-const cmpEntityCustomCommonEl = document.getElementById("cmpEntityCustomCommon");
-const cmpEntityCustomUniqueAEl = document.getElementById("cmpEntityCustomUniqueA");
-const cmpEntityCustomUniqueBEl = document.getElementById("cmpEntityCustomUniqueB");
-const cmpVersionsEl = document.getElementById("cmpVersions");
-const cmpTypeEl = document.getElementById("cmpType");
-const cmpBtn = document.getElementById("cmpBtn");
-const cmpReviewBtn = document.getElementById("cmpReviewBtn");
-const cmpProgressStepsEl = document.getElementById("cmpProgressSteps");
-const cmpStatusEl = document.getElementById("cmpStatus");
-const cmpStatsEl = document.getElementById("cmpStats");
-const cmpResultEl = document.getElementById("cmpResult");
-const cmpResultMessageEl = document.getElementById("cmpResultMessage");
-const cmpResultLinksEl = document.getElementById("cmpResultLinks");
-const cmpLogOutputEl = document.getElementById("cmpLogOutput");
-const cmpNoticeEl = document.getElementById("cmpNotice");
-const cmpPreviewPanelEl = document.getElementById("cmpPreviewPanel");
-const cmpPreviewMetaEl = document.getElementById("cmpPreviewMeta");
-const cmpPreviewTableBody = document.querySelector("#cmpPreviewTable tbody");
-
-const authStatusHintEl = document.getElementById("authStatusHint");
-const authReadyActionsEl = document.getElementById("authReadyActions");
-const authEditBlockEl = document.getElementById("authEditBlock");
-const authTokenLabelEl = document.getElementById("authTokenLabel");
-const authTokenInputEl = document.getElementById("authTokenInput");
-const saveAuthBtn = document.getElementById("saveAuthBtn");
-const cancelAuthBtn = document.getElementById("cancelAuthBtn");
-const changeAuthBtn = document.getElementById("changeAuthBtn");
-const authStatusEl = document.getElementById("authStatus");
-
-const viewEpEl = document.getElementById("viewEp");
-const tabEp = document.getElementById("tabEp");
-const resetEpBtn = document.getElementById("resetEpBtn");
-const epReloadPropsBtn = document.getElementById("epReloadPropsBtn");
-const epForm = document.getElementById("epForm");
-const epNoticeEl = document.getElementById("epNotice");
-const epSourceUploadRadio = document.getElementById("epSourceUploadRadio");
-const epSourceLiveRadio = document.getElementById("epSourceLiveRadio");
-const epUploadSection = document.getElementById("epUploadSection");
-const epLiveSection = document.getElementById("epLiveSection");
-const epSummaryFileEl = document.getElementById("epSummaryFile");
-const epExistingSummaryEl = document.getElementById("epExistingSummary");
-const epSheetFieldEl = document.getElementById("epSheetField");
-const epSheetSelectEl = document.getElementById("epSheetSelect");
-const epProjectIdEl = document.getElementById("epProjectId");
-const epModuleEl = document.getElementById("epModule");
-const epModuleCustomEl = document.getElementById("epModuleCustom");
-const epEntityEl = document.getElementById("epEntity");
-const epEntityCustomEl = document.getElementById("epEntityCustom");
-const epOutputSheetPreviewEl = document.getElementById("epOutputSheetPreview");
-const epVersionEl = document.getElementById("epVersion");
-const epExecutionTypeEl = document.getElementById("epExecutionType");
-const epAssignedDateEl = document.getElementById("epAssignedDate");
-const epDatePickerEl = document.getElementById("epDatePicker");
-const epDateFormatEl = document.getElementById("epDateFormat");
-const epAssigneeEmailEl = document.getElementById("epAssigneeEmail");
-const epReviewBtn = document.getElementById("epReviewBtn");
-const epGenerateBtn = document.getElementById("epGenerateBtn");
-const epStatusEl = document.getElementById("epStatus");
-const epStatsEl = document.getElementById("epStats");
-const epResultEl = document.getElementById("epResult");
-const epResultMessageEl = document.getElementById("epResultMessage");
-const epResultLinksEl = document.getElementById("epResultLinks");
-
 function setView(which) {
   const isMap = which === "map";
   const isCompare = which === "compare";
   const isEp = which === "ep";
+  const isReporter = which === "reporter";
 
   if (viewMapEl) viewMapEl.classList.toggle("hidden", !isMap);
   if (viewCompareEl) viewCompareEl.classList.toggle("hidden", !isCompare);
   if (viewEpEl) viewEpEl.classList.toggle("hidden", !isEp);
+  if (viewReporterEl) viewReporterEl.classList.toggle("hidden", !isReporter);
 
   if (previewPanelEl) {
     const hasMapPreview = previewTableBody && previewTableBody.children.length;
-    previewPanelEl.classList.toggle("hidden", isCompare || (!isMap && !isEp && !hasMapPreview));
+    previewPanelEl.classList.toggle("hidden", isCompare || isReporter || (!isMap && !isEp && !hasMapPreview));
   }
   if (cmpPreviewPanelEl) {
     const hasCmpPreview = cmpPreviewTableBody && cmpPreviewTableBody.children.length;
@@ -967,7 +1144,16 @@ function setView(which) {
     tabEp.classList.toggle("active", isEp);
     tabEp.setAttribute("aria-selected", isEp ? "true" : "false");
   }
+  if (tabReporter) {
+    tabReporter.classList.toggle("active", isReporter);
+    tabReporter.setAttribute("aria-selected", isReporter ? "true" : "false");
+  }
   if (isCompare) setCompareStep(1);
+  if (isReporter) {
+    loadReporterFormDefaults().catch(() => {});
+    loadReporterSchedule().catch(() => {});
+    loadReporterSheets().catch(() => {});
+  }
 }
 
 function hasCompareExcelA() {
@@ -1091,10 +1277,16 @@ function checkedValues(box) {
 
 function setCheckedValues(box, values) {
   if (!box) return;
-  const set = new Set((values || []).map((v) => String(v).trim()).filter(Boolean));
+  const set = new Set((values || []).map((v) => String(v).trim().toLowerCase()).filter(Boolean));
   box.querySelectorAll("input[type=checkbox]").forEach((el) => {
-    el.checked = set.has(el.value);
+    el.checked = set.has(String(el.value).trim().toLowerCase());
+    if (el.closest(".ms-item")) {
+      el.closest(".ms-item").classList.toggle("selected", el.checked);
+    }
   });
+  if (box === epModuleChecksEl) {
+    updateEpMultiSelectUI();
+  }
 }
 
 function parseEntityProp(value) {
@@ -1440,6 +1632,7 @@ async function runCompare(path, generated) {
 if (tabMap) tabMap.addEventListener("click", () => setView("map"));
 if (tabCompare) tabCompare.addEventListener("click", () => setView("compare"));
 if (tabEp) tabEp.addEventListener("click", () => setView("ep"));
+if (tabReporter) tabReporter.addEventListener("click", () => setView("reporter"));
 
 function showEpNotice(message, kind) {
   if (!epNoticeEl) return;
@@ -1455,13 +1648,14 @@ function showEpNotice(message, kind) {
 
 function updateEpSheetNamePreview() {
   if (!epOutputSheetPreviewEl) return;
-  const m = (epModuleCustomEl && epModuleCustomEl.value.trim()) || (epModuleEl && epModuleEl.value.trim()) || "";
-  const e = (epEntityCustomEl && epEntityCustomEl.value.trim()) || (epEntityEl && epEntityEl.value.trim()) || "";
-  let name = "Sheet1";
-  if (m && e) name = `${m} ${e}`;
-  else if (e) name = e;
-  else if (m) name = m;
-  epOutputSheetPreviewEl.textContent = name.slice(0, 31);
+  const mods = epSelectedModules();
+  if (mods.length === 0) {
+    epOutputSheetPreviewEl.textContent = "All modules (one sheet per module)";
+  } else if (mods.length === 1) {
+    epOutputSheetPreviewEl.textContent = `${mods[0].slice(0, 31)} (1 sheet)`;
+  } else {
+    epOutputSheetPreviewEl.textContent = `${mods.map((m) => m.slice(0, 18)).join(", ")} (${mods.length} sheets)`;
+  }
 }
 
 function formatIsoDate(isoStr, fmt) {
@@ -1500,7 +1694,7 @@ function resetEpForm() {
   if (epSheetFieldEl) epSheetFieldEl.classList.add("hidden");
   if (epSheetSelectEl) epSheetSelectEl.innerHTML = '<option value="">-- Choose sheet --</option>';
   if (epProjectIdEl) epProjectIdEl.value = "5";
-  if (epModuleEl) epModuleEl.value = "";
+  if (epModuleChecksEl) setCheckedValues(epModuleChecksEl, []);
   if (epModuleCustomEl) epModuleCustomEl.value = "";
   if (epEntityEl) epEntityEl.value = "";
   if (epEntityCustomEl) epEntityCustomEl.value = "";
@@ -1513,6 +1707,7 @@ function resetEpForm() {
   if (epSourceUploadRadio) epSourceUploadRadio.checked = true;
   if (epUploadSection) epUploadSection.classList.remove("hidden");
   if (epLiveSection) epLiveSection.classList.add("hidden");
+  setEpDropdownOpen(false);
   showEpNotice("");
   clearEpResults();
   updateEpSheetNamePreview();
@@ -1538,7 +1733,10 @@ function epFormData() {
     fd.append("projectId", (epProjectIdEl && epProjectIdEl.value) || "5");
   }
 
-  if (epModuleEl && epModuleEl.value) fd.append("module", epModuleEl.value);
+  const selectedMods = epSelectedModules();
+  if (selectedMods.length > 0) {
+    selectedMods.forEach((m) => fd.append("modules", m));
+  }
   if (epModuleCustomEl && epModuleCustomEl.value) fd.append("moduleCustom", epModuleCustomEl.value.trim());
   if (epEntityEl && epEntityEl.value) fd.append("entity", epEntityEl.value);
   if (epEntityCustomEl && epEntityCustomEl.value) fd.append("entityCustom", epEntityCustomEl.value.trim());
@@ -1572,9 +1770,12 @@ async function runEp(url, isGenerate) {
     if (data.summary) {
       if (epStatsEl) {
         epStatsEl.classList.remove("hidden");
+        const sheetDisplay = (data.summary.sheetNames && data.summary.sheetNames.length > 1)
+          ? `${data.summary.sheetNames.length} Sheets (${data.summary.sheetNames.join(", ")})`
+          : (data.summary.sheetName || "-");
         epStatsEl.innerHTML = `
           <div class="stat"><span class="val">${data.summary.testcaseCount || 0}</span><span class="lbl">Test Cases</span></div>
-          <div class="stat"><span class="val">${escapeHtml(data.summary.sheetName || "-")}</span><span class="lbl">Sheet Name</span></div>
+          <div class="stat"><span class="val">${escapeHtml(sheetDisplay)}</span><span class="lbl">Sheet(s)</span></div>
           <div class="stat"><span class="val">${escapeHtml(data.summary.version || "v1.0")}</span><span class="lbl">Version</span></div>
           <div class="stat"><span class="val">${escapeHtml(data.summary.executionType || "Manual")}</span><span class="lbl">Type</span></div>
           ${data.summary.assignedDate ? `<div class="stat"><span class="val">${escapeHtml(data.summary.assignedDate)}</span><span class="lbl">Date</span></div>` : ""}
@@ -1583,7 +1784,7 @@ async function runEp(url, isGenerate) {
     }
 
     if (data.preview) {
-      renderPreview(data.preview, `Execution Plan: ${data.summary.sheetName}`);
+      renderPreview(data.preview, `Execution Plan: ${data.summary.sheetName || "Sheet1"}`);
       if (previewPanelEl) {
         previewPanelEl.classList.remove("hidden");
         previewPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1593,7 +1794,11 @@ async function runEp(url, isGenerate) {
     if (isGenerate && data.download) {
       if (epResultEl) epResultEl.classList.remove("hidden");
       if (epResultMessageEl) {
-        epResultMessageEl.textContent = `Generated ${data.summary.testcaseCount} test case(s) into Execution Plan sheet "${data.summary.sheetName}".`;
+        const sheetCount = (data.summary.sheetNames && data.summary.sheetNames.length) || 1;
+        const sheetText = sheetCount > 1
+          ? `${sheetCount} sheets (${data.summary.sheetNames.join(", ")})`
+          : `sheet "${data.summary.sheetName}"`;
+        epResultMessageEl.textContent = `Generated ${data.summary.testcaseCount} test case(s) across ${sheetText}.`;
       }
       if (epResultLinksEl) {
         let links = "";
@@ -1665,7 +1870,104 @@ if (epDatePickerEl && epAssignedDateEl && epDateFormatEl) {
   });
 }
 
-[epModuleEl, epModuleCustomEl, epEntityEl, epEntityCustomEl].forEach((el) => {
+function setEpDropdownOpen(open) {
+  if (!epModuleMsWrapper || !epModuleMenu) return;
+  epModuleMsWrapper.classList.toggle("open", open);
+  epModuleMenu.classList.toggle("hidden", !open);
+  if (epModuleDropdownBtn) epModuleDropdownBtn.setAttribute("aria-expanded", String(open));
+  if (open && epModuleSearch) {
+    epModuleSearch.value = "";
+    filterEpModules("");
+    setTimeout(() => epModuleSearch.focus(), 50);
+  }
+}
+
+function filterEpModules(query) {
+  if (!epModuleChecksEl) return;
+  const q = String(query || "").trim().toLowerCase();
+  const items = epModuleChecksEl.querySelectorAll(".ms-item");
+  let visibleCount = 0;
+  items.forEach((item) => {
+    const text = item.textContent.toLowerCase();
+    const matches = !q || text.includes(q);
+    item.style.display = matches ? "flex" : "none";
+    if (matches) visibleCount++;
+  });
+  const emptyEl = epModuleChecksEl.querySelector(".ms-empty");
+  if (!visibleCount) {
+    if (!emptyEl) {
+      const empty = document.createElement("div");
+      empty.className = "ms-empty";
+      empty.textContent = `No modules matching "${query}"`;
+      epModuleChecksEl.appendChild(empty);
+    } else {
+      emptyEl.textContent = `No modules matching "${query}"`;
+      emptyEl.style.display = "block";
+    }
+  } else if (emptyEl) {
+    emptyEl.style.display = "none";
+  }
+}
+
+if (epModuleDropdownBtn && epModuleMsWrapper && epModuleMenu) {
+  epModuleDropdownBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = epModuleMsWrapper.classList.contains("open");
+    setEpDropdownOpen(!isOpen);
+  });
+
+  epModuleDropdownBtn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+      e.preventDefault();
+      setEpDropdownOpen(true);
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (epModuleMsWrapper && !epModuleMsWrapper.contains(e.target)) {
+      setEpDropdownOpen(false);
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && epModuleMsWrapper && epModuleMsWrapper.classList.contains("open")) {
+      setEpDropdownOpen(false);
+      epModuleDropdownBtn.focus();
+    }
+  });
+}
+
+if (epModuleSearch) {
+  epModuleSearch.addEventListener("input", () => {
+    filterEpModules(epModuleSearch.value);
+  });
+}
+
+if (epModuleSelectAll) {
+  epModuleSelectAll.addEventListener("click", () => {
+    if (!epModuleChecksEl) return;
+    epModuleChecksEl.querySelectorAll('input[type="checkbox"]').forEach((inp) => {
+      inp.checked = true;
+      if (inp.closest(".ms-item")) inp.closest(".ms-item").classList.add("selected");
+    });
+    updateEpMultiSelectUI();
+    updateEpSheetNamePreview();
+  });
+}
+
+if (epModuleClearAll) {
+  epModuleClearAll.addEventListener("click", () => {
+    if (!epModuleChecksEl) return;
+    epModuleChecksEl.querySelectorAll('input[type="checkbox"]').forEach((inp) => {
+      inp.checked = false;
+      if (inp.closest(".ms-item")) inp.closest(".ms-item").classList.remove("selected");
+    });
+    updateEpMultiSelectUI();
+    updateEpSheetNamePreview();
+  });
+}
+
+[epModuleCustomEl, epEntityEl, epEntityCustomEl].forEach((el) => {
   if (el) {
     el.addEventListener("input", updateEpSheetNamePreview);
     el.addEventListener("change", updateEpSheetNamePreview);
@@ -2038,8 +2340,8 @@ function applyAuthStatus(data, { justSaved = false } = {}) {
   authStatusHintEl.classList.remove("ok", "bad", "warn");
 
   if (!data.present) {
-    authStatusHintEl.textContent = "No token set — paste your SimplifyQA bearer token below.";
-    authStatusHintEl.classList.add("bad");
+    authStatusHintEl.textContent = "No token in .env — paste your SimplifyQA bearer token below.";
+    authStatusHintEl.classList.add("warn");
     if (authTokenLabelEl) authTokenLabelEl.textContent = "SimplifyQA bearer token";
     if (saveAuthBtn) saveAuthBtn.textContent = "Save token";
     setAuthEditVisible(true, { allowCancel: false });
@@ -2048,20 +2350,18 @@ function applyAuthStatus(data, { justSaved = false } = {}) {
   }
 
   if (data.expired) {
-    authStatusHintEl.textContent = "Token expired — paste a fresh bearer token below.";
-    authStatusHintEl.classList.add("bad");
+    authStatusHintEl.textContent = data.message || "Token in .env has expired. Click Change token to update.";
+    authStatusHintEl.classList.add("warn");
     if (authTokenLabelEl) authTokenLabelEl.textContent = "New SimplifyQA bearer token";
     if (saveAuthBtn) saveAuthBtn.textContent = "Update token";
-    setAuthEditVisible(true, { allowCancel: false });
+    setAuthEditVisible(false);
     setStatus(authStatusEl, "");
     return;
   }
 
   authStatusHintEl.textContent = justSaved
-    ? "Token saved and ready."
-    : data.expiresInMs != null
-      ? data.message
-      : "Token ready.";
+    ? "Token saved to .env and ready."
+    : data.message || "Token loaded from .env · Ready.";
 
   if (data.expiresInMs != null && data.expiresInMs < 60 * 60 * 1000) {
     authStatusHintEl.classList.add("warn");
@@ -2152,3 +2452,820 @@ loadConfig().catch((err) => {
 loadProperties().catch((err) => setStatus(propsStatusEl, err.message || String(err), "bad"));
 loadHistory().catch(() => {});
 loadAuthStatus().catch(() => {});
+
+// =========================================================================
+// ICEA LION REPORTER MODULE FRONTEND
+// =========================================================================
+
+let reporterTemplatesMeta = [];
+let reporterProgressTimer = null;
+let reporterCurrentPreviewFile = null;
+
+function fillReporterTemplateOptions(templates, selected) {
+  reporterTemplatesMeta = templates || [];
+  const current = selected || "";
+  if (!reporterTemplateChoiceEl) return;
+  reporterTemplateChoiceEl.innerHTML = "";
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "Uses properties if blank";
+  reporterTemplateChoiceEl.appendChild(blank);
+
+  for (const t of reporterTemplatesMeta) {
+    const opt = document.createElement("option");
+    opt.value = t.choice;
+    const file = t.template ? String(t.template).split(/[/\\]/).pop() : "";
+    opt.textContent = file
+      ? `${t.choice} — ${file}`
+      : `Template ${t.choice}`;
+    reporterTemplateChoiceEl.appendChild(opt);
+  }
+  reporterTemplateChoiceEl.value = current;
+  updateReporterTemplateHint();
+  validateReporterPlanCount();
+}
+
+function findReporterTemplateMeta(choice) {
+  const key = String(choice || "").trim();
+  return reporterTemplatesMeta.find((t) => String(t.choice) === key) || null;
+}
+
+function updateReporterTemplateHint() {
+  if (!reporterTemplateHintEl || !reporterTemplateChoiceEl) return;
+  const meta = findReporterTemplateMeta(reporterTemplateChoiceEl.value);
+  if (!meta) {
+    reporterTemplateHintEl.textContent = "";
+    return;
+  }
+  const parts = [];
+  if (meta.description) parts.push(meta.description);
+  if (meta.statusSections) {
+    parts.push(`Expects up to ${meta.statusSections} plan ID(s).`);
+  }
+  reporterTemplateHintEl.textContent = parts.join(" ");
+}
+
+function validateReporterPlanCount() {
+  if (!validateBannerEl || !reporterPlanFieldsEl || !reporterTemplateChoiceEl) return true;
+  const form = readReporterForm();
+  const choice =
+    form.templateChoice ||
+    (reporterTemplatesMeta.find((t) => t.choice)?.choice ?? "");
+  const meta = findReporterTemplateMeta(choice) || findReporterTemplateMeta(reporterTemplateChoiceEl.value);
+  const planCount = form.planIds.length;
+  validateBannerEl.classList.add("hidden");
+  validateBannerEl.classList.remove("warn", "bad");
+
+  if (!meta || !meta.statusSections || planCount === 0) return true;
+
+  if (planCount > meta.statusSections) {
+    validateBannerEl.classList.remove("hidden");
+    validateBannerEl.classList.add("bad");
+    validateBannerEl.innerHTML = `<strong>Too many plan IDs.</strong> Template ${meta.choice} supports ${meta.statusSections} status section(s), but you entered ${planCount}. Extra plans will not be filled.`;
+    return false;
+  }
+  if (planCount < meta.statusSections) {
+    validateBannerEl.classList.remove("hidden");
+    validateBannerEl.classList.add("warn");
+    validateBannerEl.innerHTML = `<strong>Fewer plans than template sections.</strong> Template ${meta.choice} has ${meta.statusSections} section(s); you entered ${planCount}. Remaining sections stay as in the template.`;
+  }
+  return true;
+}
+
+function createReporterPlanRow(value, index) {
+  const row = document.createElement("div");
+  row.className = "plan-row";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.inputMode = "numeric";
+  input.placeholder = `Plan ID ${index}`;
+  input.value = value || "";
+  input.dataset.planInput = "1";
+  input.setAttribute("aria-label", `Execution plan ID ${index}`);
+  input.addEventListener("input", validateReporterPlanCount);
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "btn danger";
+  removeBtn.textContent = "Remove";
+  removeBtn.disabled = index === 1;
+  removeBtn.addEventListener("click", () => {
+    if (!reporterPlanFieldsEl) return;
+    if (reporterPlanFieldsEl.querySelectorAll(".plan-row").length <= 1) return;
+    row.remove();
+    renumberReporterPlans();
+    validateReporterPlanCount();
+  });
+
+  row.appendChild(input);
+  row.appendChild(removeBtn);
+  return row;
+}
+
+function renumberReporterPlans() {
+  if (!reporterPlanFieldsEl) return;
+  const rows = [...reporterPlanFieldsEl.querySelectorAll(".plan-row")];
+  rows.forEach((row, i) => {
+    const input = row.querySelector("input");
+    const btn = row.querySelector("button");
+    if (input) {
+      input.placeholder = `Plan ID ${i + 1}`;
+      input.setAttribute("aria-label", `Execution plan ID ${i + 1}`);
+    }
+    if (btn) btn.disabled = rows.length === 1;
+  });
+}
+
+function setReporterPlanFields(planIds) {
+  if (!reporterPlanFieldsEl) return;
+  reporterPlanFieldsEl.innerHTML = "";
+  const ids = planIds && planIds.length ? planIds : [""];
+  ids.forEach((id, i) => {
+    reporterPlanFieldsEl.appendChild(createReporterPlanRow(id, i + 1));
+  });
+  renumberReporterPlans();
+  validateReporterPlanCount();
+}
+
+const CUSTOM_PROJECTS_KEY = "icea_reporter_custom_projects";
+let reporterProjectsList = [];
+
+function getCustomProjects() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PROJECTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomProject(id, label) {
+  const cleanId = String(id || "").trim();
+  if (!cleanId || ["2", "5", "custom", ""].includes(cleanId)) return;
+  const list = getCustomProjects().filter((p) => String(p.id) !== cleanId);
+  list.push({ id: cleanId, label: label || `Custom Project ID: ${cleanId}` });
+  try {
+    localStorage.setItem(CUSTOM_PROJECTS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+function renderReporterProjectOptions(selectedId, apiProjects) {
+  if (!reporterProjectIdEl) return;
+  if (Array.isArray(apiProjects) && apiProjects.length) {
+    reporterProjectsList = apiProjects;
+  }
+  const current = selectedId != null ? String(selectedId).trim() : (reporterProjectIdEl.value || "");
+  reporterProjectIdEl.innerHTML = "";
+
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = "Uses properties if blank";
+  reporterProjectIdEl.appendChild(defaultOpt);
+
+  const predefined = [
+    { id: "2", label: "2 — Financial Management System - Kenya" },
+    { id: "5", label: "5 — Financial Management System - Uganda" },
+  ];
+
+  const allProjects = [];
+
+  // Add API projects or default projects
+  const baseList = reporterProjectsList.length ? reporterProjectsList : predefined;
+  for (const p of baseList) {
+    const id = String(p.id);
+    const label = p.label || `${id} — ${p.name || `Project ${id}`}`;
+    if (!allProjects.some((item) => item.id === id)) {
+      allProjects.push({ id, label });
+    }
+  }
+
+  // Ensure default predefined are also there if missing
+  for (const p of predefined) {
+    if (!allProjects.some((item) => item.id === p.id)) {
+      allProjects.push(p);
+    }
+  }
+
+  const customProjects = getCustomProjects();
+  for (const cp of customProjects) {
+    if (!allProjects.some((p) => String(p.id) === String(cp.id))) {
+      allProjects.push({ id: String(cp.id), label: cp.label || `${cp.id} — Custom Project ID: ${cp.id}` });
+    }
+  }
+
+  if (current && !["", "custom"].includes(current) && !allProjects.some((p) => String(p.id) === current)) {
+    allProjects.push({ id: current, label: `${current} — Custom Project ID: ${current}` });
+    saveCustomProject(current);
+  }
+
+  for (const p of allProjects) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.label;
+    reporterProjectIdEl.appendChild(opt);
+  }
+
+  const customOpt = document.createElement("option");
+  customOpt.value = "custom";
+  customOpt.textContent = "Other / Custom Project ID…";
+  reporterProjectIdEl.appendChild(customOpt);
+
+  if (["", ...allProjects.map((p) => p.id)].includes(current)) {
+    reporterProjectIdEl.value = current;
+    if (reporterProjectIdCustomEl) {
+      reporterProjectIdCustomEl.classList.add("hidden");
+      reporterProjectIdCustomEl.value = "";
+    }
+  } else if (current) {
+    reporterProjectIdEl.value = "custom";
+    if (reporterProjectIdCustomEl) {
+      reporterProjectIdCustomEl.classList.remove("hidden");
+      reporterProjectIdCustomEl.value = current;
+    }
+  }
+}
+
+function readReporterForm() {
+  const planIds = reporterPlanFieldsEl
+    ? [...reporterPlanFieldsEl.querySelectorAll("input")]
+        .map((el) => el.value.trim())
+        .filter(Boolean)
+    : [];
+  let projectId = reporterProjectIdEl ? reporterProjectIdEl.value.trim() : "";
+  if (projectId === "custom") {
+    projectId = reporterProjectIdCustomEl ? reporterProjectIdCustomEl.value.trim() : "";
+    if (projectId) {
+      saveCustomProject(projectId);
+      renderReporterProjectOptions(projectId);
+    }
+  } else if (projectId && !["2", "5"].includes(projectId)) {
+    saveCustomProject(projectId);
+  }
+  return {
+    projectId,
+    templateChoice: reporterTemplateChoiceEl ? reporterTemplateChoiceEl.value.trim() : "",
+    planIds,
+    includeDefects: reporterIncludeDefectsEl ? reporterIncludeDefectsEl.checked : true,
+    includePdf: reporterIncludePdfEl ? reporterIncludePdfEl.checked : false,
+  };
+}
+
+function applyReporterForm(form) {
+  const pId = form.projectId ? String(form.projectId).trim() : "";
+  renderReporterProjectOptions(pId, form.projects || []);
+  fillReporterTemplateOptions(form.templates || [], form.templateChoice || "");
+  setReporterPlanFields(form.planIds && form.planIds.length ? form.planIds : [""]);
+}
+
+function showReporterAlerts(alerts) {
+  if (!reporterAlertBannerEl) return;
+  if (!alerts || !alerts.length) {
+    reporterAlertBannerEl.classList.add("hidden");
+    reporterAlertBannerEl.innerHTML = "";
+    reporterAlertBannerEl.removeAttribute("open");
+    return;
+  }
+
+  const moduleCount = alerts.reduce((n, a) => {
+    return (
+      n +
+      (a.details || []).filter((d) => String(d).trim().startsWith("-")).length
+    );
+  }, 0);
+  const summaryText =
+    moduleCount > 0
+      ? `${alerts.length} note${alerts.length === 1 ? "" : "s"} · ${moduleCount} module${
+          moduleCount === 1 ? "" : "s"
+        } not in template`
+      : `${alerts.length} note${alerts.length === 1 ? "" : "s"} from this run`;
+
+  const body = alerts
+    .map((a) => {
+      const tips = [];
+      const items = [];
+      for (const d of a.details || []) {
+        const text = String(d || "").trim();
+        if (!text) continue;
+        if (text.startsWith("-")) items.push(text.replace(/^-\s*/, ""));
+        else tips.push(text);
+      }
+      return `<div class="alert-block"><h3>${escapeHtml(
+        a.title || "Note"
+      )}</h3>${
+        items.length
+          ? `<ul>${items.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>`
+          : ""
+      }${tips
+        .map((t) => `<p class="alert-tip">${escapeHtml(t)}</p>`)
+        .join("")}</div>`;
+    })
+    .join("");
+
+  reporterAlertBannerEl.innerHTML = `<summary class="run-notes-head"><span class="run-notes-icon" aria-hidden="true">⚠️</span><span class="run-notes-title">${escapeHtml(
+    summaryText
+  )}</span><span class="run-notes-toggle">Click to expand</span></summary><div class="run-notes-body">${body}</div>`;
+  reporterAlertBannerEl.classList.remove("hidden");
+  reporterAlertBannerEl.removeAttribute("open");
+}
+
+const REPORTER_STEP_ORDER = [
+  "prepare",
+  "download_ep",
+  "fill_status",
+  "defects",
+  "save",
+  "done",
+];
+
+function setReporterProgress(stepId) {
+  if (!reporterProgressStepsEl) return;
+  reporterProgressStepsEl.classList.remove("hidden");
+  const idx = REPORTER_STEP_ORDER.indexOf(stepId);
+  for (const li of reporterProgressStepsEl.querySelectorAll("li")) {
+    const key = li.dataset.step;
+    const pos = REPORTER_STEP_ORDER.indexOf(key);
+    li.classList.remove("active", "done");
+    if (pos >= 0 && pos < idx) li.classList.add("done");
+    else if (pos === idx) li.classList.add("active");
+  }
+}
+
+function pollReporterProgress() {
+  stopReporterProgressPolling();
+  reporterProgressTimer = setInterval(async () => {
+    try {
+      const res = await fetch("/api/reporter/run-progress");
+      const data = await res.json();
+      if (!data.ok || !data.running) {
+        stopReporterProgressPolling();
+        return;
+      }
+      if (data.progress) {
+        if (data.progress.stepId) setReporterProgress(data.progress.stepId);
+        if (data.progress.label && reporterRunStatusEl) {
+          setStatus(reporterRunStatusEl, data.progress.label);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, 700);
+}
+
+function stopReporterProgressPolling() {
+  if (reporterProgressTimer) {
+    clearInterval(reporterProgressTimer);
+    reporterProgressTimer = null;
+  }
+}
+
+async function loadReporterFormDefaults() {
+  try {
+    const res = await fetch("/api/reporter/form-defaults");
+    const data = await res.json();
+    if (!data.ok) return;
+    applyReporterForm(data.form || {});
+  } catch {
+    /* ignore */
+  }
+}
+
+async function loadReporterProperties() {
+  if (!reporterPropsStatusEl || !reporterPropertiesTextEl) return;
+  setStatus(reporterPropsStatusEl, "Loading…");
+  try {
+    const res = await fetch("/api/reporter/properties");
+    const data = await res.json();
+    if (!data.ok) {
+      setStatus(reporterPropsStatusEl, data.message || "Failed to load properties.", "bad");
+      return;
+    }
+    reporterPropertiesTextEl.value = data.text || "";
+    setStatus(reporterPropsStatusEl, "application.properties loaded.", "ok");
+  } catch (err) {
+    setStatus(reporterPropsStatusEl, err.message || String(err), "bad");
+  }
+}
+
+async function saveReporterProperties() {
+  if (!reporterPropsStatusEl || !reporterPropertiesTextEl) return;
+  const text = reporterPropertiesTextEl.value;
+  setStatus(reporterPropsStatusEl, "Saving…");
+  try {
+    const res = await fetch("/api/reporter/properties", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      setStatus(reporterPropsStatusEl, data.message || "Save failed.", "bad");
+      return;
+    }
+    setStatus(reporterPropsStatusEl, "Saved application.properties.", "ok");
+    if (data.form) applyReporterForm(data.form);
+  } catch (err) {
+    setStatus(reporterPropsStatusEl, err.message || String(err), "bad");
+  }
+}
+
+async function loadReporterSchedule() {
+  if (!reporterScheduleStatusEl) return;
+  try {
+    const res = await fetch("/api/reporter/schedule");
+    const data = await res.json();
+    if (!data.ok) return;
+    const sch = data.schedule || {};
+    if (!sch.enabled) {
+      reporterScheduleStatusEl.textContent = "Schedule is disabled in application.properties (SCHEDULE_ENABLED=false).";
+    } else if (!sch.times || !sch.times.length) {
+      reporterScheduleStatusEl.textContent = "Schedule enabled, but no SCHEDULE_TIMES configured.";
+    } else {
+      reporterScheduleStatusEl.textContent = `Schedule active: daily at ${sch.times.join(", ")} · Next run: ${sch.nextRun || "calculating…"}`;
+    }
+  } catch {
+    reporterScheduleStatusEl.textContent = "Could not load schedule.";
+  }
+}
+
+async function loadReporterSheets() {
+  if (!reporterComparePreviousEl || !reporterCompareLatestEl) return;
+  try {
+    const res = await fetch("/api/reporter/sheets");
+    const data = await res.json();
+    if (!data.ok) {
+      setStatus(reporterCompareStatusEl, data.message || "Could not load sheets.", "bad");
+      return;
+    }
+    const sheets = (data.sheets || []).map((s) => (typeof s === "object" && s.name ? s.name : String(s)));
+    reporterComparePreviousEl.innerHTML = "";
+    reporterCompareLatestEl.innerHTML = "";
+    if (!sheets.length) {
+      const o1 = document.createElement("option");
+      o1.value = "";
+      o1.textContent = "-- No sheets found --";
+      reporterComparePreviousEl.appendChild(o1);
+      const o2 = document.createElement("option");
+      o2.value = "";
+      o2.textContent = "-- No sheets found --";
+      reporterCompareLatestEl.appendChild(o2);
+      return;
+    }
+    sheets.forEach((s) => {
+      const o1 = document.createElement("option");
+      o1.value = s;
+      o1.textContent = s;
+      reporterComparePreviousEl.appendChild(o1);
+      const o2 = document.createElement("option");
+      o2.value = s;
+      o2.textContent = s;
+      reporterCompareLatestEl.appendChild(o2);
+    });
+    if (sheets.length >= 2) {
+      reporterComparePreviousEl.value = sheets[sheets.length - 2];
+      reporterCompareLatestEl.value = sheets[sheets.length - 1];
+    } else {
+      reporterComparePreviousEl.value = sheets[0];
+      reporterCompareLatestEl.value = sheets[0];
+    }
+    setStatus(reporterCompareStatusEl, "");
+  } catch (err) {
+    setStatus(reporterCompareStatusEl, "Could not load sheets: " + (err.message || String(err)), "bad");
+  }
+}
+
+async function runReporterCompare() {
+  if (!reporterComparePreviousEl || !reporterCompareLatestEl || !reporterCompareStatusEl) return;
+  const previous = reporterComparePreviousEl.value;
+  const latest = reporterCompareLatestEl.value;
+  if (!previous || !latest) {
+    setStatus(reporterCompareStatusEl, "Select both previous and latest sheets.", "bad");
+    return;
+  }
+  setStatus(reporterCompareStatusEl, "Creating compare sheet…");
+  try {
+    const res = await fetch("/api/reporter/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous, latest }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      setStatus(reporterCompareStatusEl, data.message || "Compare failed.", "bad");
+      return;
+    }
+    setStatus(reporterCompareStatusEl, data.message || "Compare sheet created.", "ok");
+    loadReporterSheets().catch(() => {});
+    if (data.file) {
+      showReporterResult({
+        message: data.message || "Compare sheet created.",
+        outputFile: `output/${data.file}`,
+        download: {
+          output: data.download,
+        },
+      });
+    }
+  } catch (err) {
+    setStatus(reporterCompareStatusEl, err.message || String(err), "bad");
+  }
+}
+
+async function openReporterGeneratedExcel(data) {
+  const fileName = data.outputFile
+    ? data.outputFile.split(/[/\\]/).pop()
+    : null;
+  if (!fileName) return;
+
+  setStatus(reporterRunStatusEl, "Opening in Excel…");
+
+  try {
+    const res = await fetch("/api/launch-excel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: pathJoin("output", fileName) }),
+      cache: "no-store",
+    });
+    const payload = await res.json();
+    if (!payload.ok) {
+      throw new Error(payload.message || "Unable to open Excel.");
+    }
+    setStatus(
+      reporterRunStatusEl,
+      payload.message || `Opened in spreadsheet app from the output folder.`,
+      "ok"
+    );
+  } catch (err) {
+    setStatus(reporterRunStatusEl, err.message || String(err), "bad");
+  }
+}
+
+function pathJoin(a, b) {
+  return `${a}/${b}`.replace(/\\/g, "/");
+}
+
+function showReporterResult(data) {
+  if (!reporterResultBoxEl || !reporterResultMessageEl || !reporterResultLinksEl) return;
+  reporterResultBoxEl.classList.remove("hidden");
+  reporterResultMessageEl.textContent = data.message || "";
+  reporterResultLinksEl.innerHTML = "";
+  showReporterAlerts(data.alerts || []);
+
+  if (data.download && data.download.output) {
+    const a = document.createElement("a");
+    a.href = data.download.output;
+    a.textContent = "Download Excel";
+    a.setAttribute("download", "");
+    reporterResultLinksEl.appendChild(a);
+
+    const openExcel = document.createElement("a");
+    openExcel.href = "#";
+    openExcel.textContent = "Open in Excel";
+    openExcel.addEventListener("click", (e) => {
+      e.preventDefault();
+      openReporterGeneratedExcel(data);
+    });
+    reporterResultLinksEl.appendChild(openExcel);
+  }
+
+  if (data.download && data.download.pdf) {
+    const pdfA = document.createElement("a");
+    pdfA.href = data.download.pdf;
+    pdfA.textContent = "Download PDF";
+    pdfA.setAttribute("download", "");
+    reporterResultLinksEl.appendChild(pdfA);
+  }
+
+  if (data.download && data.download.log) {
+    const logA = document.createElement("a");
+    logA.href = data.download.log;
+    logA.textContent = "Download Log";
+    logA.setAttribute("download", "");
+    reporterResultLinksEl.appendChild(logA);
+  }
+
+  if (data.logLines && reporterLogOutputEl) {
+    reporterLogOutputEl.textContent = data.logLines.join("\n");
+  }
+}
+
+function resetReporterForm() {
+  if (reporterProjectIdEl) reporterProjectIdEl.value = "";
+  if (reporterProjectIdCustomEl) {
+    reporterProjectIdCustomEl.value = "";
+    reporterProjectIdCustomEl.classList.add("hidden");
+  }
+  if (reporterTemplateChoiceEl) reporterTemplateChoiceEl.value = "";
+  if (reporterIncludeDefectsEl) reporterIncludeDefectsEl.checked = true;
+  if (reporterIncludePdfEl) reporterIncludePdfEl.checked = false;
+  setReporterPlanFields([""]);
+  if (reporterResultBoxEl) reporterResultBoxEl.classList.add("hidden");
+  if (reporterAlertBannerEl) reporterAlertBannerEl.classList.add("hidden");
+  if (reporterProgressStepsEl) reporterProgressStepsEl.classList.add("hidden");
+  if (validateBannerEl) validateBannerEl.classList.add("hidden");
+  setStatus(reporterRunStatusEl, "");
+}
+
+// Event Listeners for Reporter Module
+function setReporterSubView(sub) {
+  const isGen = sub === "generate";
+  const isCmp = sub === "compare";
+  const isSch = sub === "schedule";
+
+  if (subTabReporterGenerate) {
+    subTabReporterGenerate.classList.toggle("active", isGen);
+    subTabReporterGenerate.setAttribute("aria-selected", isGen ? "true" : "false");
+  }
+  if (subTabReporterCompare) {
+    subTabReporterCompare.classList.toggle("active", isCmp);
+    subTabReporterCompare.setAttribute("aria-selected", isCmp ? "true" : "false");
+  }
+  if (subTabReporterSchedule) {
+    subTabReporterSchedule.classList.toggle("active", isSch);
+    subTabReporterSchedule.setAttribute("aria-selected", isSch ? "true" : "false");
+  }
+
+  if (subViewReporterGenerate) subViewReporterGenerate.classList.toggle("hidden", !isGen);
+  if (subViewReporterCompare) {
+    subViewReporterCompare.classList.toggle("hidden", !isCmp);
+    if (isCmp) loadReporterSheets().catch(() => {});
+  }
+  if (subViewReporterSchedule) {
+    subViewReporterSchedule.classList.toggle("hidden", !isSch);
+    if (isSch) {
+      loadReporterSchedule().catch(() => {});
+      loadReporterProperties().catch(() => {});
+    }
+  }
+}
+
+// Sub-Tab event listeners
+if (subTabReporterGenerate) {
+  subTabReporterGenerate.addEventListener("click", () => setReporterSubView("generate"));
+}
+if (subTabReporterCompare) {
+  subTabReporterCompare.addEventListener("click", () => setReporterSubView("compare"));
+}
+if (subTabReporterSchedule) {
+  subTabReporterSchedule.addEventListener("click", () => setReporterSubView("schedule"));
+}
+
+if (reporterProjectIdEl) {
+  reporterProjectIdEl.addEventListener("change", () => {
+    if (reporterProjectIdEl.value === "custom") {
+      if (reporterProjectIdCustomEl) {
+        reporterProjectIdCustomEl.classList.remove("hidden");
+        reporterProjectIdCustomEl.focus();
+      }
+    } else {
+      if (reporterProjectIdCustomEl) {
+        reporterProjectIdCustomEl.classList.add("hidden");
+        reporterProjectIdCustomEl.value = "";
+      }
+    }
+  });
+}
+
+if (reporterProjectIdCustomEl) {
+  reporterProjectIdCustomEl.addEventListener("change", () => {
+    const customVal = reporterProjectIdCustomEl.value.trim();
+    if (customVal) {
+      saveCustomProject(customVal);
+      renderReporterProjectOptions(customVal);
+    }
+  });
+}
+
+if (reporterTemplateFileInput) {
+  reporterTemplateFileInput.addEventListener("change", async () => {
+    const file = reporterTemplateFileInput.files && reporterTemplateFileInput.files[0];
+    if (!file) return;
+    setStatus(reporterTemplateUploadStatus, `Uploading "${file.name}"…`);
+    const fd = new FormData();
+    fd.append("template", file);
+
+    try {
+      const res = await fetch("/api/reporter/upload-template", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(reporterTemplateUploadStatus, data.message || "Template upload failed.", "bad");
+        return;
+      }
+      setStatus(reporterTemplateUploadStatus, data.message || "Template uploaded successfully!", "ok");
+      if (data.form && data.form.templates) {
+        fillReporterTemplateOptions(data.form.templates, data.choice);
+      }
+      if (reporterPropsDetailsEl && reporterPropsDetailsEl.open) {
+        loadReporterProperties().catch(() => {});
+      }
+    } catch (err) {
+      setStatus(reporterTemplateUploadStatus, err.message || "Upload request failed.", "bad");
+    } finally {
+      reporterTemplateFileInput.value = "";
+    }
+  });
+}
+
+if (reporterTemplateChoiceEl) {
+  reporterTemplateChoiceEl.addEventListener("change", () => {
+    updateReporterTemplateHint();
+    validateReporterPlanCount();
+  });
+}
+
+if (reporterAddPlanBtn) {
+  reporterAddPlanBtn.addEventListener("click", () => {
+    if (!reporterPlanFieldsEl) return;
+    const count = reporterPlanFieldsEl.querySelectorAll(".plan-row").length + 1;
+    reporterPlanFieldsEl.appendChild(createReporterPlanRow("", count));
+    renumberReporterPlans();
+    validateReporterPlanCount();
+  });
+}
+
+if (resetReporterBtn) {
+  resetReporterBtn.addEventListener("click", () => resetReporterForm());
+}
+
+if (reloadReporterFormBtn) {
+  reloadReporterFormBtn.addEventListener("click", () => {
+    loadReporterFormDefaults().catch(() => {});
+    setStatus(reporterRunStatusEl, "Form reloaded from application.properties.", "ok");
+  });
+}
+
+if (reporterReloadPropsBtn) {
+  reporterReloadPropsBtn.addEventListener("click", () => loadReporterProperties());
+}
+
+if (reporterSavePropsBtn) {
+  reporterSavePropsBtn.addEventListener("click", () => saveReporterProperties());
+}
+
+if (reporterPropsDetailsEl) {
+  reporterPropsDetailsEl.addEventListener("toggle", () => {
+    if (reporterPropsDetailsEl.open && (!reporterPropertiesTextEl || !reporterPropertiesTextEl.value)) {
+      loadReporterProperties().catch(() => {});
+    }
+  });
+}
+
+if (reporterReloadScheduleBtn) {
+  reporterReloadScheduleBtn.addEventListener("click", () => loadReporterSchedule());
+}
+
+if (reporterReloadSheetsBtn) {
+  reporterReloadSheetsBtn.addEventListener("click", () => loadReporterSheets());
+}
+
+if (reporterCompareBtn) {
+  reporterCompareBtn.addEventListener("click", () => runReporterCompare());
+}
+
+const reporterFormEl = document.getElementById("reporterForm");
+if (reporterFormEl) {
+  reporterFormEl.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (reporterRunBtn) reporterRunBtn.disabled = true;
+    setStatus(reporterRunStatusEl, "Starting report generation…");
+    if (reporterProgressStepsEl) reporterProgressStepsEl.classList.remove("hidden");
+    setReporterProgress("prepare");
+    pollReporterProgress();
+
+    try {
+      const form = readReporterForm();
+      const res = await fetch("/api/reporter/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form }),
+      });
+      const data = await res.json();
+      stopReporterProgressPolling();
+
+      if (!data.ok) {
+        setReporterProgress("prepare");
+        setStatus(reporterRunStatusEl, data.message || "Report generation failed.", "bad");
+        if (data.logLines && reporterLogOutputEl) {
+          reporterLogOutputEl.textContent = data.logLines.join("\n");
+          if (reporterLogDetailsEl) reporterLogDetailsEl.open = true;
+        }
+        showReporterAlerts(data.alerts || []);
+        return;
+      }
+
+      setReporterProgress("done");
+      setStatus(reporterRunStatusEl, data.message || "Report generated successfully.", "ok");
+      showReporterResult(data);
+      loadHistory().catch(() => {});
+      loadReporterSheets().catch(() => {});
+    } catch (err) {
+      stopReporterProgressPolling();
+      setStatus(reporterRunStatusEl, err.message || String(err), "bad");
+    } finally {
+      if (reporterRunBtn) reporterRunBtn.disabled = false;
+    }
+  });
+}

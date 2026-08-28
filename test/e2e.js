@@ -41,6 +41,11 @@ async function jsonReq(base, urlPath, options = {}) {
 }
 
 async function main() {
+  const envPath = path.join(ROOT, ".env");
+  const originalEnv = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : null;
+  const propsPath = path.join(ROOT, "config", "application.properties");
+  const originalProps = fs.existsSync(propsPath) ? fs.readFileSync(propsPath, "utf8") : null;
+
   const { server, base } = await listen();
   console.log("Test server", base);
 
@@ -620,7 +625,7 @@ async function main() {
 
     const page = await fetch(base + "/");
     const html = await page.text();
-    ok("UI index served", page.ok && html.includes("ICEA LION Testcase Review"));
+    ok("UI index served", page.ok && html.includes("ICEA LION Test Management Hub"));
     ok("properties collapsed by default", html.includes('id="propsDetails"') && !html.includes('<details id="propsDetails" open'));
     ok("client dropzone present", html.includes('id="clientDrop"') && html.includes('id="kenyaDrop"'));
     ok("preview panel present", html.includes('id="previewPanel"'));
@@ -1006,7 +1011,7 @@ async function main() {
         epGenRes.data.ok === true &&
         epGenRes.data.download &&
         epGenRes.data.download.excel &&
-        epGenRes.data.summary.sheetName === "Accounts Payable Life UG"
+        epGenRes.data.summary.sheetName === "Accounts Payable"
     );
 
     if (epGenRes.data && epGenRes.data.download && epGenRes.data.download.excel) {
@@ -1014,7 +1019,7 @@ async function main() {
       const epBuf = Buffer.from(await epDl.arrayBuffer());
       const epWb = XLSX.read(epBuf, { type: "buffer" });
       const sheetName = epWb.SheetNames[0];
-      ok("EP Excel has sheet named Module+Entity", sheetName === "Accounts Payable Life UG");
+      ok("EP Excel has sheet named Module", sheetName === "Accounts Payable");
       const epRows = XLSX.utils.sheet_to_json(epWb.Sheets[sheetName], { header: 1 });
       ok(
         "EP Excel has correct 6 standard headers",
@@ -1035,6 +1040,75 @@ async function main() {
       // Header + 32 testcase rows = 33 rows total (ensures strict module/entity filtering)
       ok("EP Excel only includes specified module and entity test cases", epRows.length === 33);
     }
+
+    // Test multi-module EP generation using synthetic multi-module summary workbook
+    const multiSummaryWb = XLSX.utils.book_new();
+    const multiSummaryWs = XLSX.utils.aoa_to_sheet([
+      ["Testcase ID", "Testcase Name", "Module", "Execution Type", "", "", "Entity", "", "", "", "Selected Version(/s)"],
+      ["TC-101", "Verify AP Payment", "Accounts Payable", "Manual", "", "", "Life UG", "", "", "", "v1.0"],
+      ["TC-102", "Verify FA Addition", "Fixed Assets Management", "Manual", "", "", "Life UG", "", "", "", "v1.0"],
+      ["TC-103", "Verify Payroll Run", "Payroll", "Manual", "", "", "Life UG", "", "", "", "v1.0"],
+    ]);
+    XLSX.utils.book_append_sheet(multiSummaryWb, multiSummaryWs, "TestCases");
+    const multiSummaryBuf = XLSX.write(multiSummaryWb, { type: "buffer", bookType: "xlsx" });
+
+    const epMultiFd = new FormData();
+    epMultiFd.append(
+      "summary",
+      new Blob([multiSummaryBuf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      "MultiModuleSummary.xlsx"
+    );
+    epMultiFd.append("modules", "Accounts Payable");
+    epMultiFd.append("modules", "Fixed Assets Management");
+    epMultiFd.append("entity", "Life UG");
+    const epMultiRes = await jsonReq(base, "/api/ep/generate", { method: "POST", body: epMultiFd });
+    ok(
+      "EP multi-module generate returns separate sheets",
+      epMultiRes.data &&
+        epMultiRes.data.ok === true &&
+        epMultiRes.data.summary &&
+        epMultiRes.data.summary.sheetNames &&
+        epMultiRes.data.summary.sheetNames.length >= 2 &&
+        epMultiRes.data.summary.sheetNames.includes("Accounts Payable") &&
+        epMultiRes.data.summary.sheetNames.includes("Fixed Assets Management")
+    );
+
+    if (epMultiRes.data && epMultiRes.data.download && epMultiRes.data.download.excel) {
+      const epMultiDl = await fetch(base + epMultiRes.data.download.excel);
+      const epMultiBuf = Buffer.from(await epMultiDl.arrayBuffer());
+      const epMultiWb = XLSX.read(epMultiBuf, { type: "buffer" });
+      ok("EP multi-module workbook has multiple sheets", epMultiWb.SheetNames.length === 2);
+      ok("EP multi-module sheet 1 is Accounts Payable", epMultiWb.SheetNames.includes("Accounts Payable"));
+      ok("EP multi-module sheet 2 is Fixed Assets Management", epMultiWb.SheetNames.includes("Fixed Assets Management"));
+    }
+
+    // Test exact module matching does not leak E2E sub-modules (e.g. General Ledger vs E2E General Ledger)
+    const testWb = XLSX.utils.book_new();
+    const testRows = [
+      ["Testcase ID", "Testcase Name", "Module", "Execution Type", "Entity", "Version"],
+      ["TC-1", "GL Post", "General Ledger", "Manual", "Life UG", "v1.0"],
+      ["TC-2", "GL Review", "General Ledger", "Manual", "Life UG", "v1.0"],
+      ["TC-3", "E2E GL Flow", "E2E Testcases>E2E General Ledger", "Manual", "Life UG", "v1.0"],
+      ["TC-4", "Cash Entry", "Cash & Bank Management", "Manual", "Life UG", "v1.0"],
+      ["TC-5", "E2E Cash Flow", "E2E Testcases>E2E Cash & Bank", "Manual", "Life UG", "v1.0"],
+    ];
+    const testWs = XLSX.utils.aoa_to_sheet(testRows);
+    XLSX.utils.book_append_sheet(testWb, testWs, "Summary");
+    const testWbBuf = XLSX.write(testWb, { type: "buffer", bookType: "xlsx" });
+
+    const glTestFd = new FormData();
+    glTestFd.append("summary", new Blob([testWbBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "GL_Test.xlsx");
+    glTestFd.append("moduleCustom", "General Ledger");
+    const glTestRes = await jsonReq(base, "/api/ep/review", { method: "POST", body: glTestFd });
+    ok(
+      "EP strict module filter excludes E2E General Ledger when General Ledger is chosen",
+      glTestRes.data &&
+        glTestRes.data.ok === true &&
+        glTestRes.data.summary &&
+        glTestRes.data.summary.testcaseCount === 2
+    );
 
     // Test Invalid Date Format rejection
     const epBadDateFd = new FormData();
@@ -1071,7 +1145,63 @@ async function main() {
       "save auth token updates status and message",
       saveTokenRes.data && saveTokenRes.data.ok === true && saveTokenRes.data.present === true
     );
+
+    // =========================================================================
+    // Reporter Module E2E Tests
+    // =========================================================================
+    const repHealth = await jsonReq(base, "/api/reporter/health");
+    ok("reporter health returns ok and progress info", repHealth.data && repHealth.data.ok === true && "running" in repHealth.data);
+
+    const repBranding = await jsonReq(base, "/api/reporter/branding");
+    ok("reporter branding returns ok, title, and logo", repBranding.data && repBranding.data.ok === true && typeof repBranding.data.title === "string");
+
+    const repDefaults = await jsonReq(base, "/api/reporter/form-defaults");
+    ok("reporter form-defaults returns form configuration", repDefaults.data && repDefaults.data.ok === true && typeof repDefaults.data.form === "object");
+
+    const repProps = await jsonReq(base, "/api/reporter/properties");
+    ok("reporter properties returns application.properties content", repProps.data && repProps.data.ok === true && typeof repProps.data.text === "string");
+
+    const repSchedule = await jsonReq(base, "/api/reporter/schedule");
+    ok("reporter schedule returns schedule status", repSchedule.data && repSchedule.data.ok === true && typeof repSchedule.data.schedule === "object");
+
+    const repProgress = await jsonReq(base, "/api/reporter/run-progress");
+    ok("reporter run-progress endpoint works", repProgress.data && repProgress.data.ok === true && typeof repProgress.data.progress === "object");
+
+    const repHistory = await jsonReq(base, "/api/reporter/history");
+    ok("reporter history endpoint returns runs array", repHistory.data && repHistory.data.ok === true && Array.isArray(repHistory.data.runs));
+
+    const repProjects = await jsonReq(base, "/api/reporter/projects");
+    ok("reporter projects endpoint returns projects array", repProjects.data && repProjects.data.ok === true && Array.isArray(repProjects.data.projects));
+
+    // Reporter template upload test
+    const testTplBuf = fs.readFileSync(path.join(ROOT, "Template", "FMS Status tracker.xlsx"));
+    const tplForm = new FormData();
+    tplForm.append("template", new Blob([testTplBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "Custom_Upload_Template_4.xlsx");
+    const repUploadRes = await fetch(`${base}/api/reporter/upload-template`, {
+      method: "POST",
+      body: tplForm,
+    });
+    const repUploadData = await repUploadRes.json();
+    ok("reporter upload-template endpoint registers new template", repUploadData.ok === true && Boolean(repUploadData.choice));
+
+    // Clean up uploaded test template file
+    const uploadedTplFile = path.join(ROOT, "Template", "Custom_Upload_Template_4.xlsx");
+    if (fs.existsSync(uploadedTplFile)) {
+      try { fs.unlinkSync(uploadedTplFile); } catch {}
+    }
+
+    // Verify UI has Reporter tab and view
+    const indexHtml = fs.readFileSync(path.join(ROOT, "public", "index.html"), "utf8");
+    ok("UI contains ICEA LION Reporter tab", indexHtml.includes('id="tabReporter"'));
+    ok("UI contains viewReporter container", indexHtml.includes('id="viewReporter"'));
+    ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"'));
   } finally {
+    if (originalProps !== null) {
+      fs.writeFileSync(propsPath, originalProps, "utf8");
+    }
+    if (originalEnv !== null) {
+      fs.writeFileSync(envPath, originalEnv, "utf8");
+    }
     await new Promise((resolve) => server.close(resolve));
   }
 

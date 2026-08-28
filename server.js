@@ -38,9 +38,12 @@ const {
   getTokenStatus,
   saveBearerToken,
 } = require("./lib/loadEnv");
+const { createReporterRouter } = require("./lib/reporter/routes");
 
 const ROOT = __dirname;
+const explicitPort = process.env.PORT;
 loadProjectEnv(ROOT);
+if (explicitPort) process.env.PORT = explicitPort;
 
 const PKG = require("./package.json");
 const APP_VERSION = String(PKG.version || "0.0.0");
@@ -810,8 +813,21 @@ app.post(
 async function runEpMapping(req, { generate }) {
   const body = req.body || {};
   const mode = String(body.mode || "upload").toLowerCase();
+
+  // Resolve modules: support modules array, comma-separated string, or customModule / module fallback
+  let moduleList = [];
   const customModule = String(body.moduleCustom || "").trim();
-  const moduleName = customModule || String(body.module || "").trim();
+  if (customModule) {
+    moduleList = customModule.split(",").map((m) => m.trim()).filter(Boolean);
+  } else if (Array.isArray(body.modules)) {
+    moduleList = body.modules.map((m) => String(m).trim()).filter(Boolean);
+  } else if (typeof body.modules === "string" && body.modules.trim()) {
+    moduleList = body.modules.split(",").map((m) => m.trim()).filter(Boolean);
+  } else if (body.module) {
+    moduleList = [String(body.module).trim()].filter(Boolean);
+  }
+
+  const moduleName = moduleList.join(", ");
   const customEntity = String(body.entityCustom || "").trim();
   const entityName = customEntity || String(body.entity || "").trim();
   const version = String(body.version || "v1.0").trim() || "v1.0";
@@ -845,6 +861,7 @@ async function runEpMapping(req, { generate }) {
     const fetched = await fetchTestcasesFromSimplifyQa({
       token,
       projectId,
+      moduleNames: moduleList,
       moduleName,
       entity: entityName,
     });
@@ -879,6 +896,7 @@ async function runEpMapping(req, { generate }) {
     }
 
     const extracted = extractTestcasesFromSummary(buffer, {
+      modules: moduleList,
       module: moduleName,
       entity: entityName,
       sheet: body.summarySheet,
@@ -888,7 +906,7 @@ async function runEpMapping(req, { generate }) {
   }
 
   if (!testcases.length) {
-    const filterDesc = [moduleName ? `Module: ${moduleName}` : null, entityName ? `Entity: ${entityName}` : null]
+    const filterDesc = [moduleName ? `Module(s): ${moduleName}` : null, entityName ? `Entity: ${entityName}` : null]
       .filter(Boolean)
       .join(", ");
     const err = new Error(
@@ -900,6 +918,7 @@ async function runEpMapping(req, { generate }) {
 
   const result = buildEpWorkbook({
     testcases,
+    moduleNames: moduleList,
     moduleName,
     entityName,
     version,
@@ -911,7 +930,8 @@ async function runEpMapping(req, { generate }) {
 
   if (generate) {
     const stamp = nowStamp();
-    const cleanMod = safeBaseName(moduleName || "Module");
+    let modFilePart = moduleList.length === 1 ? moduleList[0] : (moduleList.length > 1 ? `${moduleList.length}_Modules` : "All_Modules");
+    const cleanMod = safeBaseName(modFilePart || "Module");
     const cleanEnt = safeBaseName(entityName || "Entity");
     const outName = `${cleanMod}_${cleanEnt}_EP_${stamp}.xlsx`;
     const logName = `${cleanMod}_${cleanEnt}_ep_${stamp}.log`;
@@ -924,15 +944,18 @@ async function runEpMapping(req, { generate }) {
       `=========================================`,
       `Date/Time        : ${new Date().toISOString()}`,
       `Source           : ${sourceLabel}`,
-      `Module           : ${moduleName || "(all)"}`,
+      `Module(s)        : ${moduleName || "(all)"}`,
       `Entity           : ${entityName || "(all)"}`,
-      `Output Sheet     : ${result.sheetName}`,
+      `Output Sheet(s)  : ${(result.sheetNames || [result.sheetName]).join(", ")}`,
       `Total TCs Mapped : ${testcases.length}`,
       `Version Default  : ${version}`,
       `Execution Type   : ${executionType}`,
       `Assigned Date    : ${result.summary.assignedDate || "(none)"}`,
       `Assignee Email   : ${assigneeEmail || "(none)"}`,
       `Generated File   : ${outName}`,
+      ``,
+      `Sheets Breakdown:`,
+      ...(result.sheetStats || []).map((s) => `  - Sheet "${s.sheetName}": ${s.testcaseCount} test case(s)`),
       ``,
       `Mapped Test Cases:`,
       ...testcases.map(
@@ -1063,9 +1086,20 @@ app.get("/api/preview/output", (req, res) => {
   }
 });
 
+app.use("/api/reporter", createReporterRouter());
+
 app.post("/api/launch-excel", (req, res) => {
   try {
-    const abs = safeResolveUnder(OUT_DIR, req.body && req.body.file);
+    const rawFile = req.body && req.body.file;
+    let abs;
+    try {
+      abs = safeResolveUnder(OUT_DIR, rawFile);
+      if (!fs.existsSync(abs)) {
+        abs = safeResolveUnder(ROOT, rawFile);
+      }
+    } catch {
+      abs = safeResolveUnder(ROOT, rawFile);
+    }
     if (!fs.existsSync(abs)) {
       return res.status(404).json({ ok: false, message: "Excel not found." });
     }
@@ -1176,7 +1210,7 @@ function startServer(port = PORT) {
     const addr = server.address();
     const bound = addr && typeof addr === "object" ? addr.port : port;
     console.log(`pid ${process.pid}`);
-    console.log(`ICEA LION Testcase Review UI  v${APP_VERSION}  http://localhost:${bound}`);
+    console.log(`ICEA LION Test Management Hub UI  v${APP_VERSION}  http://localhost:${bound}`);
     for (const ip of lanAddresses()) {
       console.log(`  LAN  http://${ip}:${bound}`);
     }
