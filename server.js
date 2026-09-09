@@ -829,12 +829,27 @@ async function runEpMapping(req, { generate }) {
 
   const moduleName = moduleList.join(", ");
   const customEntity = String(body.entityCustom || "").trim();
-  const entityName = customEntity || String(body.entity || "").trim();
+  const parseOptionalList = (raw, keepEmpty = false) => {
+    if (raw == null || raw === "") return [];
+    const parts = Array.isArray(raw) ? raw : [raw];
+    const mapped = parts.map((v) => String(v == null ? "" : v).trim());
+    return keepEmpty ? mapped : mapped.filter(Boolean);
+  };
+  const entityList = customEntity
+    ? customEntity.split(/[,;]/).map((v) => v.trim()).filter(Boolean)
+    : parseOptionalList(body.entity);
+  const entityName = entityList.join(", ");
   const version = String(body.version || "v1.0").trim() || "v1.0";
   const executionType = String(body.executionType || "Manual").trim() || "Manual";
   const assignedDate = String(body.assignedDate || "").trim();
   const dateFormat = String(body.dateFormat || "mm/dd/yyyy").trim();
-  const assigneeEmail = String(body.assigneeEmail || "").trim();
+  const assigneeList = parseOptionalList(body.assigneeEmail, true);
+  const entityAssignees = entityList.length
+    ? entityList.map((entity, idx) => ({ entity, email: assigneeList[idx] || "" }))
+    : [{ entity: "", email: assigneeList[0] || "" }];
+  const assigneeEmail = entityAssignees.length === 1
+    ? String(entityAssignees[0].email || "").trim()
+    : entityAssignees.map((p) => p.email).filter(Boolean).join("; ");
   const projectId = Number(body.projectId) || 5;
 
   let testcases = [];
@@ -863,7 +878,7 @@ async function runEpMapping(req, { generate }) {
       projectId,
       moduleNames: moduleList,
       moduleName,
-      entity: entityName,
+      entity: entityList,
     });
     testcases = fetched.testcases;
     sourceLabel = `SimplifyQA Live API (Project ${projectId})`;
@@ -898,7 +913,7 @@ async function runEpMapping(req, { generate }) {
     const extracted = extractTestcasesFromSummary(buffer, {
       modules: moduleList,
       module: moduleName,
-      entity: entityName,
+      entity: entityList,
       sheet: body.summarySheet,
     });
     testcases = extracted.testcases;
@@ -925,6 +940,7 @@ async function runEpMapping(req, { generate }) {
     executionType,
     assignedDate,
     assigneeEmail,
+    entityAssignees,
     dateFormat,
   });
 
@@ -932,7 +948,9 @@ async function runEpMapping(req, { generate }) {
     const stamp = nowStamp();
     let modFilePart = moduleList.length === 1 ? moduleList[0] : (moduleList.length > 1 ? `${moduleList.length}_Modules` : "All_Modules");
     const cleanMod = safeBaseName(modFilePart || "Module");
-    const cleanEnt = safeBaseName(entityName || "Entity");
+    const cleanEnt = safeBaseName(
+      entityList.length === 1 ? entityList[0] : entityList.length > 1 ? `${entityList.length}_Entities` : "Entity"
+    );
     const outName = `${cleanMod}_${cleanEnt}_EP_${stamp}.xlsx`;
     const logName = `${cleanMod}_${cleanEnt}_ep_${stamp}.log`;
     ensureDir(OUT_DIR);
@@ -951,7 +969,7 @@ async function runEpMapping(req, { generate }) {
       `Version Default  : ${version}`,
       `Execution Type   : ${executionType}`,
       `Assigned Date    : ${result.summary.assignedDate || "(none)"}`,
-      `Assignee Email   : ${assigneeEmail || "(none)"}`,
+      `Assignee Email   : ${result.summary.assigneeEmails || assigneeEmail || "(none)"}`,
       `Generated File   : ${outName}`,
       ``,
       `Sheets Breakdown:`,

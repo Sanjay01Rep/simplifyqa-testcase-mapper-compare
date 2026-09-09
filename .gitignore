@@ -6,6 +6,10 @@ node_modules/
 .env.*
 !.env.example
 
+# Curl dumps with tokens — never commit
+API For EP.txt
+API Files/
+
 # Local run config (committed templates: mapping.properties.example, config/application.properties.example)
 mapping.properties
 config/application.properties

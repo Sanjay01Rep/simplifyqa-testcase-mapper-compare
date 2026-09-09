@@ -109,6 +109,8 @@ const epExistingSummaryEl = document.getElementById("epExistingSummary");
 const epSheetFieldEl = document.getElementById("epSheetField");
 const epSheetSelectEl = document.getElementById("epSheetSelect");
 const epProjectIdEl = document.getElementById("epProjectId");
+const epProjectIdCustomEl = document.getElementById("epProjectIdCustom");
+const deleteEpCustomProjectBtn = document.getElementById("deleteEpCustomProjectBtn");
 const epModuleMsWrapper = document.getElementById("epModuleMsWrapper");
 const epModuleDropdownBtn = document.getElementById("epModuleDropdownBtn");
 const epModuleDisplay = document.getElementById("epModuleDisplay");
@@ -120,7 +122,7 @@ const epModuleCount = document.getElementById("epModuleCount");
 const epModuleChecksEl = document.getElementById("epModuleChecks");
 const epModuleTags = document.getElementById("epModuleTags");
 const epModuleCustomEl = document.getElementById("epModuleCustom");
-const epEntityEl = document.getElementById("epEntity");
+const epEntityChecksEl = document.getElementById("epEntityChecks");
 const epEntityCustomEl = document.getElementById("epEntityCustom");
 const epOutputSheetPreviewEl = document.getElementById("epOutputSheetPreview");
 const epVersionEl = document.getElementById("epVersion");
@@ -128,7 +130,9 @@ const epExecutionTypeEl = document.getElementById("epExecutionType");
 const epAssignedDateEl = document.getElementById("epAssignedDate");
 const epDatePickerEl = document.getElementById("epDatePicker");
 const epDateFormatEl = document.getElementById("epDateFormat");
-const epAssigneeEmailEl = document.getElementById("epAssigneeEmail");
+const epAssigneeFieldsEl = document.getElementById("epAssigneeFields");
+const epAssigneeHintEl = document.getElementById("epAssigneeHint");
+let epEntitySelectionOrder = [];
 const epReviewBtn = document.getElementById("epReviewBtn");
 const epGenerateBtn = document.getElementById("epGenerateBtn");
 const epStatusEl = document.getElementById("epStatus");
@@ -147,6 +151,10 @@ const subViewReporterCompare = document.getElementById("subViewReporterCompare")
 const subViewReporterSchedule = document.getElementById("subViewReporterSchedule");
 const reporterProjectIdEl = document.getElementById("reporterProjectId");
 const reporterProjectIdCustomEl = document.getElementById("reporterProjectIdCustom");
+const deleteReporterCustomProjectBtn = document.getElementById("deleteReporterCustomProjectBtn");
+const reporterProjectIdBEl = document.getElementById("reporterProjectIdB");
+const reporterProjectIdBCustomEl = document.getElementById("reporterProjectIdBCustom");
+const reporterSitProjectBWrap = document.getElementById("reporterSitProjectBWrap");
 const reporterTemplateChoiceEl = document.getElementById("reporterTemplateChoice");
 const reporterTemplateFileInput = document.getElementById("reporterTemplateFileInput");
 const reporterTemplateUploadStatus = document.getElementById("reporterTemplateUploadStatus");
@@ -786,7 +794,7 @@ async function loadConfig() {
   clearMapEntitySelection();
   if (epExistingSummaryEl) fillSelect(epExistingSummaryEl, data.epSampleFiles || [], "Or pick existing sample summary file");
   fillEpModuleChecks(data.modules || FALLBACK_MODULES);
-  if (epEntityEl) fillChoices(epEntityEl, data.entities || FALLBACK_ENTITIES, "-- All entities (or pick) --");
+  fillEpEntityChecks(data.entities || FALLBACK_ENTITIES);
   updateEpSheetNamePreview();
   const props = data.props || {};
   // Map Entity is never auto-selected — user must pick (or type custom / Load from properties).
@@ -816,8 +824,16 @@ async function loadProperties(options = {}) {
   applyCompareProps(props, { applyCompareEntity: Boolean(options.applyCompareEntity) });
   if (options.applyEpProps) {
     if (epModuleChecksEl && props.Module) setCheckedValues(epModuleChecksEl, [props.Module]);
-    if (epEntityEl && props.Entity) epEntityEl.value = props.Entity;
+    if (epEntityChecksEl && props.Entity) {
+      const fromProps = parseEntityProp(props.Entity);
+      setCheckedValues(epEntityChecksEl, fromProps);
+      epEntitySelectionOrder = fromProps.slice();
+    }
+    if (epEntityCustomEl && props.EntityCustom != null) {
+      epEntityCustomEl.value = String(props.EntityCustom || "");
+    }
     if (epVersionEl && props.Versions) epVersionEl.value = props.Versions;
+    syncEpAssigneeFields();
     updateEpSheetNamePreview();
   }
   setStatus(propsStatusEl, "Loaded mapping.properties.", "ok");
@@ -1112,6 +1128,7 @@ bindDropzone(document.getElementById("kenyaDrop"), kenyaFileEl);
 
 fillChoices(moduleEl, FALLBACK_MODULES, "-- Select module --");
 fillMapEntityChecks(FALLBACK_ENTITIES);
+fillEpEntityChecks(FALLBACK_ENTITIES);
 
 function setView(which) {
   const isMap = which === "map";
@@ -1153,6 +1170,9 @@ function setView(which) {
     loadReporterFormDefaults().catch(() => {});
     loadReporterSchedule().catch(() => {});
     loadReporterSheets().catch(() => {});
+  }
+  if (isEp) {
+    loadSharedProjects().catch(() => {});
   }
 }
 
@@ -1239,6 +1259,130 @@ function fillMapEntityChecks(values) {
     .join("");
   // Never auto-check Map Entity — user must choose.
   setCheckedValues(entityChecksEl, []);
+}
+
+function fillEpEntityChecks(values) {
+  if (!epEntityChecksEl) return;
+  const list = values && values.length ? values : FALLBACK_ENTITIES;
+  const keep = checkedValues(epEntityChecksEl);
+  epEntityChecksEl.innerHTML = list
+    .map(
+      (value) =>
+        `<label class="check-opt"><input type="checkbox" value="${escapeHtml(
+          value
+        )}"> ${escapeHtml(value)}</label>`
+    )
+    .join("");
+  setCheckedValues(epEntityChecksEl, keep);
+  epEntityChecksEl.querySelectorAll('input[type="checkbox"]').forEach((inp) => {
+    inp.addEventListener("change", onEpEntityCheckChange);
+  });
+  epEntitySelectionOrder = epEntitySelectionOrder.filter((name) =>
+    keep.some((v) => String(v).trim().toLowerCase() === String(name).trim().toLowerCase())
+  );
+  syncEpAssigneeFields();
+}
+
+function onEpEntityCheckChange(ev) {
+  const inp = ev && ev.target;
+  if (!inp) return;
+  const value = String(inp.value || "").trim();
+  if (inp.checked) {
+    if (!epEntitySelectionOrder.some((v) => v.toLowerCase() === value.toLowerCase())) {
+      epEntitySelectionOrder.push(value);
+    }
+  } else {
+    epEntitySelectionOrder = epEntitySelectionOrder.filter((v) => v.toLowerCase() !== value.toLowerCase());
+  }
+  syncEpAssigneeFields();
+  updateEpSheetNamePreview();
+}
+
+function epCustomEntities() {
+  return String((epEntityCustomEl && epEntityCustomEl.value) || "")
+    .split(/[,;]/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function epSelectedEntities() {
+  const custom = epCustomEntities();
+  if (custom.length) return custom;
+  const checked = checkedValues(epEntityChecksEl);
+  const ordered = [];
+  for (const name of epEntitySelectionOrder) {
+    const match = checked.find((v) => String(v).trim().toLowerCase() === String(name).trim().toLowerCase());
+    if (match && !ordered.some((v) => v.toLowerCase() === match.toLowerCase())) {
+      ordered.push(match);
+    }
+  }
+  for (const name of checked) {
+    if (!ordered.some((v) => v.toLowerCase() === String(name).trim().toLowerCase())) {
+      ordered.push(name);
+    }
+  }
+  return ordered;
+}
+
+function readEpAssigneeValues() {
+  const values = {};
+  if (!epAssigneeFieldsEl) return values;
+  epAssigneeFieldsEl.querySelectorAll("[data-ep-assignee]").forEach((inp) => {
+    values[String(inp.getAttribute("data-ep-entity") || "")] = inp.value;
+  });
+  return values;
+}
+
+function syncEpAssigneeFields() {
+  if (!epAssigneeFieldsEl) return;
+  const entities = epSelectedEntities();
+  const previous = readEpAssigneeValues();
+  const sharedPrev = previous[""] || "";
+  epAssigneeFieldsEl.innerHTML = "";
+
+  const labels = entities.length
+    ? entities.map((name, idx) => ({
+        entity: name,
+        label: entities.length > 1 ? `${idx + 1}. Assignee for ${name}` : `Assignee for ${name}`,
+        placeholder: `Email for ${name} (optional)`,
+      }))
+    : [
+        {
+          entity: "",
+          label: "Assignee for all entities",
+          placeholder: "Leave blank or enter assignee email",
+        },
+      ];
+
+  if (epAssigneeHintEl) {
+    epAssigneeHintEl.textContent = entities.length > 1
+      ? "Each assignee is applied only to test cases of the entity in the same position (1st entity → 1st assignee, 2nd → 2nd)."
+      : entities.length === 1
+        ? `This assignee is applied to ${entities[0]} test cases.`
+        : "No entity selected: this assignee is applied to all matching test cases. Select entities above to assign separately.";
+  }
+
+  for (const item of labels) {
+    const row = document.createElement("label");
+    row.className = "ep-assignee-row field";
+    const span = document.createElement("span");
+    span.textContent = item.label;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.setAttribute("data-ep-assignee", "1");
+    input.setAttribute("data-ep-entity", item.entity);
+    input.name = "assigneeEmail";
+    input.autocomplete = "off";
+    input.placeholder = item.placeholder;
+    input.value = Object.prototype.hasOwnProperty.call(previous, item.entity)
+      ? previous[item.entity]
+      : item.entity
+        ? ""
+        : sharedPrev;
+    row.appendChild(span);
+    row.appendChild(input);
+    epAssigneeFieldsEl.appendChild(row);
+  }
 }
 
 function applyMapEntityFromProps(props) {
@@ -1649,13 +1793,30 @@ function showEpNotice(message, kind) {
 function updateEpSheetNamePreview() {
   if (!epOutputSheetPreviewEl) return;
   const mods = epSelectedModules();
-  if (mods.length === 0) {
-    epOutputSheetPreviewEl.textContent = "All modules (one sheet per module)";
-  } else if (mods.length === 1) {
-    epOutputSheetPreviewEl.textContent = `${mods[0].slice(0, 31)} (1 sheet)`;
-  } else {
-    epOutputSheetPreviewEl.textContent = `${mods.map((m) => m.slice(0, 18)).join(", ")} (${mods.length} sheets)`;
+  const entities = epSelectedEntities();
+  if (entities.length > 1) {
+    if (!mods.length) {
+      epOutputSheetPreviewEl.textContent = `One sheet per module and entity (${entities.join(" + ")})`;
+      return;
+    }
+    const names = mods.flatMap((mod) => entities.map((ent) => `${String(mod).slice(0, 18)}_${ent}`));
+    const shown = names.slice(0, 4).join(", ");
+    const extra = names.length > 4 ? ` +${names.length - 4} more` : "";
+    epOutputSheetPreviewEl.textContent = `${shown}${extra} (${names.length} sheet${names.length === 1 ? "" : "s"}, one per entity)`;
+    return;
   }
+  let sheetText = "";
+  if (mods.length === 0) {
+    sheetText = "All modules (one sheet per module)";
+  } else if (mods.length === 1) {
+    sheetText = `${mods[0].slice(0, 31)} (1 sheet)`;
+  } else {
+    sheetText = `${mods.map((m) => m.slice(0, 18)).join(", ")} (${mods.length} sheets)`;
+  }
+  if (entities.length === 1) {
+    sheetText += ` · ${entities[0]}`;
+  }
+  epOutputSheetPreviewEl.textContent = sheetText;
 }
 
 function formatIsoDate(isoStr, fmt) {
@@ -1693,17 +1854,25 @@ function resetEpForm() {
   if (epExistingSummaryEl) epExistingSummaryEl.value = "";
   if (epSheetFieldEl) epSheetFieldEl.classList.add("hidden");
   if (epSheetSelectEl) epSheetSelectEl.innerHTML = '<option value="">-- Choose sheet --</option>';
-  if (epProjectIdEl) epProjectIdEl.value = "5";
+  if (epProjectIdEl) {
+    const keep = readProjectIdFromSelect(epProjectIdEl, epProjectIdCustomEl) || "5";
+    renderProjectOptions(keep, reporterProjectsList, {
+      selectEl: epProjectIdEl,
+      customInputEl: epProjectIdCustomEl,
+      deleteBtnEl: deleteEpCustomProjectBtn,
+    });
+  }
   if (epModuleChecksEl) setCheckedValues(epModuleChecksEl, []);
   if (epModuleCustomEl) epModuleCustomEl.value = "";
-  if (epEntityEl) epEntityEl.value = "";
+  if (epEntityChecksEl) setCheckedValues(epEntityChecksEl, []);
+  epEntitySelectionOrder = [];
   if (epEntityCustomEl) epEntityCustomEl.value = "";
   if (epVersionEl) epVersionEl.value = "v1.0";
   if (epExecutionTypeEl) epExecutionTypeEl.value = "Manual";
   if (epAssignedDateEl) epAssignedDateEl.value = "";
   if (epDatePickerEl) epDatePickerEl.value = "";
   if (epDateFormatEl) epDateFormatEl.value = "mm/dd/yyyy";
-  if (epAssigneeEmailEl) epAssigneeEmailEl.value = "";
+  syncEpAssigneeFields();
   if (epSourceUploadRadio) epSourceUploadRadio.checked = true;
   if (epUploadSection) epUploadSection.classList.remove("hidden");
   if (epLiveSection) epLiveSection.classList.add("hidden");
@@ -1730,7 +1899,7 @@ function epFormData() {
       fd.append("summarySheet", epSheetSelectEl.value);
     }
   } else {
-    fd.append("projectId", (epProjectIdEl && epProjectIdEl.value) || "5");
+    fd.append("projectId", readProjectIdFromSelect(epProjectIdEl, epProjectIdCustomEl) || "5");
   }
 
   const selectedMods = epSelectedModules();
@@ -1738,13 +1907,19 @@ function epFormData() {
     selectedMods.forEach((m) => fd.append("modules", m));
   }
   if (epModuleCustomEl && epModuleCustomEl.value) fd.append("moduleCustom", epModuleCustomEl.value.trim());
-  if (epEntityEl && epEntityEl.value) fd.append("entity", epEntityEl.value);
+  const selectedEntities = epSelectedEntities();
+  selectedEntities.forEach((entity) => fd.append("entity", entity));
   if (epEntityCustomEl && epEntityCustomEl.value) fd.append("entityCustom", epEntityCustomEl.value.trim());
   if (epVersionEl && epVersionEl.value) fd.append("version", epVersionEl.value.trim());
   if (epExecutionTypeEl && epExecutionTypeEl.value) fd.append("executionType", epExecutionTypeEl.value);
   if (epAssignedDateEl && epAssignedDateEl.value) fd.append("assignedDate", epAssignedDateEl.value.trim());
   if (epDateFormatEl && epDateFormatEl.value) fd.append("dateFormat", epDateFormatEl.value);
-  if (epAssigneeEmailEl && epAssigneeEmailEl.value) fd.append("assigneeEmail", epAssigneeEmailEl.value.trim());
+  const assigneeInputs = epAssigneeFieldsEl
+    ? [...epAssigneeFieldsEl.querySelectorAll("[data-ep-assignee]")]
+    : [];
+  if (assigneeInputs.length) {
+    assigneeInputs.forEach((inp) => fd.append("assigneeEmail", String(inp.value || "").trim()));
+  }
 
   return fd;
 }
@@ -1842,6 +2017,7 @@ if (epSourceUploadRadio && epSourceLiveRadio) {
   epSourceLiveRadio.addEventListener("change", () => {
     if (epUploadSection) epUploadSection.classList.add("hidden");
     if (epLiveSection) epLiveSection.classList.remove("hidden");
+    loadSharedProjects().catch(() => {});
   });
 }
 
@@ -1967,10 +2143,16 @@ if (epModuleClearAll) {
   });
 }
 
-[epModuleCustomEl, epEntityEl, epEntityCustomEl].forEach((el) => {
+[epModuleCustomEl, epEntityCustomEl].forEach((el) => {
   if (el) {
-    el.addEventListener("input", updateEpSheetNamePreview);
-    el.addEventListener("change", updateEpSheetNamePreview);
+    el.addEventListener("input", () => {
+      syncEpAssigneeFields();
+      updateEpSheetNamePreview();
+    });
+    el.addEventListener("change", () => {
+      syncEpAssigneeFields();
+      updateEpSheetNamePreview();
+    });
   }
 });
 
@@ -2499,8 +2681,10 @@ function updateReporterTemplateHint() {
   }
   const parts = [];
   if (meta.description) parts.push(meta.description);
-  if (meta.statusSections) {
-    parts.push(`Expects up to ${meta.statusSections} plan ID(s).`);
+  if (meta.sitDualProject) {
+    parts.push("Select Uganda as Project A and Tanzania as Project B. Three execution-plan dropdowns: Gen UG, Life UG, Gen TZ.");
+  } else if (meta.statusSections) {
+    parts.push(`Shows ${meta.statusSections} execution plan dropdown(s). Pick from the live plan list.`);
   }
   reporterTemplateHintEl.textContent = parts.join(" ");
 }
@@ -2536,20 +2720,60 @@ function createReporterPlanRow(value, index) {
   const row = document.createElement("div");
   row.className = "plan-row";
 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.inputMode = "numeric";
-  input.placeholder = `Plan ID ${index}`;
-  input.value = value || "";
-  input.dataset.planInput = "1";
-  input.setAttribute("aria-label", `Execution plan ID ${index}`);
-  input.addEventListener("input", validateReporterPlanCount);
+  const pick = document.createElement("div");
+  pick.className = "plan-pick";
+
+  if (isSitReporterTemplate() && SIT_PLAN_LABELS[index - 1]) {
+    const lab = document.createElement("span");
+    lab.className = "plan-row-label";
+    lab.textContent = SIT_PLAN_LABELS[index - 1];
+    pick.appendChild(lab);
+  }
+
+  const select = document.createElement("select");
+  select.dataset.planSelect = "1";
+  select.setAttribute("aria-label", `Execution plan ${index}`);
+  fillReporterPlanSelect(select, value, plansListForReporterRow(index));
+
+  const custom = document.createElement("input");
+  custom.type = "text";
+  custom.inputMode = "numeric";
+  custom.placeholder = `Custom plan ID ${index}`;
+  custom.dataset.planCustom = "1";
+  custom.className = "hidden";
+  custom.setAttribute("aria-label", `Custom execution plan ID ${index}`);
+  const rowPlans = plansListForReporterRow(index);
+  if (select.value === "custom" || (!rowPlans.length && !value)) {
+    if (!rowPlans.length && !value) select.value = "custom";
+    custom.classList.remove("hidden");
+    custom.value = value || "";
+  }
+  custom.addEventListener("change", () => {
+    validateReporterPlanCount();
+    const projectId = readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl);
+    loadReporterPlans(projectId).catch(() => {});
+  });
+  custom.addEventListener("input", validateReporterPlanCount);
+
+  select.addEventListener("change", () => {
+    if (select.value === "custom") {
+      custom.classList.remove("hidden");
+      custom.focus();
+    } else {
+      custom.classList.add("hidden");
+      custom.value = "";
+    }
+    validateReporterPlanCount();
+  });
+
+  pick.appendChild(select);
+  pick.appendChild(custom);
 
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
   removeBtn.className = "btn danger";
   removeBtn.textContent = "Remove";
-  removeBtn.disabled = index === 1;
+  removeBtn.disabled = index === 1 || isSitReporterTemplate();
   removeBtn.addEventListener("click", () => {
     if (!reporterPlanFieldsEl) return;
     if (reporterPlanFieldsEl.querySelectorAll(".plan-row").length <= 1) return;
@@ -2558,23 +2782,176 @@ function createReporterPlanRow(value, index) {
     validateReporterPlanCount();
   });
 
-  row.appendChild(input);
+  row.appendChild(pick);
   row.appendChild(removeBtn);
   return row;
+}
+
+function plansListForReporterRow(index) {
+  if (isSitReporterTemplate() && Number(index) >= 3) return reporterPlansListB;
+  return reporterPlansList;
+}
+
+function fillReporterPlanSelect(select, selectedId, plansList) {
+  if (!select) return;
+  const list = Array.isArray(plansList) ? plansList : reporterPlansList;
+  const current = selectedId != null ? String(selectedId).trim() : select.value || "";
+  select.innerHTML = "";
+
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = list.length ? "Select a plan…" : "Enter a plan or wait for names…";
+  select.appendChild(blank);
+
+  const seen = new Set();
+  for (const p of list) {
+    const id = String(p.id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = p.label || `${id} — ${p.name || `Plan ${id}`}`;
+    select.appendChild(opt);
+  }
+
+  if (current && current !== "custom" && !seen.has(current)) {
+    const opt = document.createElement("option");
+    opt.value = current;
+    opt.textContent = `${current} — Custom Plan ID`;
+    select.appendChild(opt);
+  }
+
+  const customOpt = document.createElement("option");
+  customOpt.value = "custom";
+  customOpt.textContent = "Other / Custom Plan ID…";
+  select.appendChild(customOpt);
+
+  if (!current) {
+    select.value = "";
+  } else if (seen.has(current) || [...select.options].some((o) => o.value === current)) {
+    select.value = current;
+  } else {
+    select.value = "custom";
+  }
+}
+
+function readPlanIdFromRow(row) {
+  if (!row) return "";
+  const select = row.querySelector("[data-plan-select]");
+  const custom = row.querySelector("[data-plan-custom]");
+  if (select) {
+    if (select.value === "custom") return custom ? custom.value.trim() : "";
+    return select.value.trim();
+  }
+  const input = row.querySelector("[data-plan-input], input");
+  return input ? input.value.trim() : "";
+}
+
+function refreshReporterPlanSelects() {
+  if (!reporterPlanFieldsEl) return;
+  [...reporterPlanFieldsEl.querySelectorAll(".plan-row")].forEach((row, i) => {
+    const select = row.querySelector("[data-plan-select]");
+    const custom = row.querySelector("[data-plan-custom]");
+    if (!select) return;
+    const current = readPlanIdFromRow(row);
+    fillReporterPlanSelect(select, current, plansListForReporterRow(i + 1));
+    if (select.value === "custom") {
+      if (custom) {
+        custom.classList.remove("hidden");
+        custom.value = current;
+      }
+    } else if (custom) {
+      custom.classList.add("hidden");
+      custom.value = "";
+    }
+  });
 }
 
 function renumberReporterPlans() {
   if (!reporterPlanFieldsEl) return;
   const rows = [...reporterPlanFieldsEl.querySelectorAll(".plan-row")];
   rows.forEach((row, i) => {
-    const input = row.querySelector("input");
-    const btn = row.querySelector("button");
-    if (input) {
-      input.placeholder = `Plan ID ${i + 1}`;
-      input.setAttribute("aria-label", `Execution plan ID ${i + 1}`);
+    const select = row.querySelector("[data-plan-select]");
+    const custom = row.querySelector("[data-plan-custom]");
+    const btn = row.querySelector("button.danger, button");
+    if (select) select.setAttribute("aria-label", `Execution plan ${i + 1}`);
+    if (custom) {
+      custom.placeholder = `Custom plan ID ${i + 1}`;
+      custom.setAttribute("aria-label", `Custom execution plan ID ${i + 1}`);
     }
-    if (btn) btn.disabled = rows.length === 1;
+    if (btn) btn.disabled = rows.length === 1 || isSitReporterTemplate();
   });
+}
+
+function isSitReporterTemplate() {
+  const choice =
+    (reporterTemplateChoiceEl && reporterTemplateChoiceEl.value.trim()) || "";
+  const meta = findReporterTemplateMeta(choice);
+  return Boolean(meta && meta.sitDualProject);
+}
+
+const SIT_PLAN_LABELS = [
+  "1. General Uganda | SIT (Uganda project)",
+  "2. Life Uganda | SIT (Uganda project)",
+  "3. General Tanzania | SIT (Tanzania project)",
+];
+
+function updateReporterSitUi() {
+  const sit = isSitReporterTemplate();
+  if (reporterSitProjectBWrap) reporterSitProjectBWrap.classList.toggle("hidden", !sit);
+  if (reporterAddPlanBtn) reporterAddPlanBtn.classList.toggle("hidden", sit);
+  const projectLabel = document.querySelector("#reporterForm .field-head span");
+  if (projectLabel && projectLabel.textContent && /Project/.test(projectLabel.textContent)) {
+    projectLabel.textContent = sit ? "Project A (Uganda) *" : "Project *";
+  }
+  if (sit) {
+    const a = readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl);
+    const b = readProjectIdFromSelect(reporterProjectIdBEl, reporterProjectIdBCustomEl);
+    if (!a) renderReporterProjectOptions("5", reporterProjectsList);
+    if (!b) renderReporterProjectBOptions("6", reporterProjectsList);
+  }
+}
+
+function reporterExpectedPlanCount() {
+  const choice =
+    (reporterTemplateChoiceEl && reporterTemplateChoiceEl.value.trim()) ||
+    (reporterTemplatesMeta.find((t) => t.choice) || {}).choice ||
+    "";
+  const meta = findReporterTemplateMeta(choice);
+  const n = meta && Number(meta.statusSections);
+  return n > 0 ? n : 0;
+}
+
+function planIdsForTemplateCount(existingIds, count) {
+  const current = (existingIds || []).map((id) => String(id || "").trim());
+  if (!count) return current.length ? current : [""];
+  const ids = [];
+  for (let i = 0; i < count; i++) ids.push(current[i] || "");
+  return ids;
+}
+
+function syncReporterPlanRowsToTemplate() {
+  const n = reporterExpectedPlanCount();
+  setReporterPlanFields(planIdsForTemplateCount([], n));
+}
+
+function clearReporterPlanIdsForProjectChange(which) {
+  const n = reporterExpectedPlanCount();
+  if (!isSitReporterTemplate()) {
+    setReporterPlanFields(planIdsForTemplateCount([], n || 1));
+    return;
+  }
+  const rows = reporterPlanFieldsEl
+    ? [...reporterPlanFieldsEl.querySelectorAll(".plan-row")]
+    : [];
+  const ids = rows.map((row) => readPlanIdFromRow(row));
+  while (ids.length < 3) ids.push("");
+  if (which === "b") ids[2] = "";
+  else {
+    ids[0] = "";
+    ids[1] = "";
+  }
+  setReporterPlanFields(planIdsForTemplateCount(ids, n || 3));
 }
 
 function setReporterPlanFields(planIds) {
@@ -2586,6 +2963,61 @@ function setReporterPlanFields(planIds) {
   });
   renumberReporterPlans();
   validateReporterPlanCount();
+}
+
+let reporterPlansList = [];
+let reporterPlansListB = [];
+let reporterPlansRequestId = 0;
+let lastReporterForm = null;
+
+async function fetchReporterPlanList(projectId, currentIds) {
+  const id = String(projectId || "").trim();
+  const qs = new URLSearchParams();
+  if (id && id !== "custom") qs.set("projectId", id);
+  if (currentIds && currentIds.length) qs.set("ids", currentIds.filter(Boolean).join(","));
+  try {
+    const res = await fetch(`/api/reporter/plans?${qs.toString()}`);
+    const data = await res.json();
+    return data.ok && Array.isArray(data.plans) ? data.plans : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadReporterPlans(projectId) {
+  const requestId = ++reporterPlansRequestId;
+  if (isSitReporterTemplate()) {
+    reporterPlansList = [];
+    reporterPlansListB = [];
+    refreshReporterPlanSelects();
+    const rows = reporterPlanFieldsEl
+      ? [...reporterPlanFieldsEl.querySelectorAll(".plan-row")]
+      : [];
+    const idsA = rows.slice(0, 2).map((row) => readPlanIdFromRow(row)).filter(Boolean);
+    const idsB = rows.slice(2, 3).map((row) => readPlanIdFromRow(row)).filter(Boolean);
+    const a = readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl);
+    const b = readProjectIdFromSelect(reporterProjectIdBEl, reporterProjectIdBCustomEl);
+    const [plansA, plansB] = await Promise.all([
+      fetchReporterPlanList(a, idsA),
+      fetchReporterPlanList(b, idsB),
+    ]);
+    if (requestId !== reporterPlansRequestId) return;
+    reporterPlansList = plansA;
+    reporterPlansListB = plansB;
+    refreshReporterPlanSelects();
+    return;
+  }
+  const id = String(projectId || "").trim();
+  const currentIds = reporterPlanFieldsEl
+    ? [...reporterPlanFieldsEl.querySelectorAll(".plan-row")].map((row) => readPlanIdFromRow(row)).filter(Boolean)
+    : [];
+  reporterPlansListB = [];
+  reporterPlansList = [];
+  refreshReporterPlanSelects();
+  const plans = await fetchReporterPlanList(id, currentIds);
+  if (requestId !== reporterPlansRequestId) return;
+  reporterPlansList = plans;
+  refreshReporterPlanSelects();
 }
 
 const CUSTOM_PROJECTS_KEY = "icea_reporter_custom_projects";
@@ -2603,6 +3035,7 @@ function getCustomProjects() {
 function saveCustomProject(id, label) {
   const cleanId = String(id || "").trim();
   if (!cleanId || ["2", "5", "custom", ""].includes(cleanId)) return;
+  if (isLiveReporterProject(cleanId)) return;
   const list = getCustomProjects().filter((p) => String(p.id) !== cleanId);
   list.push({ id: cleanId, label: label || `Custom Project ID: ${cleanId}` });
   try {
@@ -2610,18 +3043,64 @@ function saveCustomProject(id, label) {
   } catch {}
 }
 
-function renderReporterProjectOptions(selectedId, apiProjects) {
-  if (!reporterProjectIdEl) return;
+function removeCustomProject(id) {
+  const cleanId = String(id || "").trim();
+  if (!cleanId) return;
+  const list = getCustomProjects().filter((p) => String(p.id) !== cleanId);
+  try {
+    localStorage.setItem(CUSTOM_PROJECTS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+function isLiveReporterProject(id) {
+  const cleanId = String(id || "").trim();
+  if (!cleanId || cleanId === "custom") return false;
+  if (["2", "5", "6"].includes(cleanId)) return true;
+  return reporterProjectsList.some((p) => String(p.id) === cleanId);
+}
+
+function isDeletableCustomProject(id) {
+  const cleanId = String(id || "").trim();
+  if (!cleanId || cleanId === "custom") return false;
+  if (isLiveReporterProject(cleanId)) return false;
+  return getCustomProjects().some((p) => String(p.id) === cleanId);
+}
+
+function readProjectIdFromSelect(selectEl, customInputEl) {
+  if (!selectEl) return "";
+  let projectId = selectEl.value.trim();
+  if (projectId === "custom") {
+    projectId = customInputEl ? customInputEl.value.trim() : "";
+  }
+  return projectId;
+}
+
+function updateCustomProjectDeleteBtn(selectEl, deleteBtnEl) {
+  if (!deleteBtnEl) return;
+  const selected = selectEl ? selectEl.value.trim() : "";
+  deleteBtnEl.classList.toggle("hidden", !isDeletableCustomProject(selected));
+}
+
+function updateReporterCustomProjectDeleteBtn() {
+  updateCustomProjectDeleteBtn(reporterProjectIdEl, deleteReporterCustomProjectBtn);
+}
+
+function renderProjectOptions(selectedId, apiProjects, els) {
+  const selectEl = (els && els.selectEl) || reporterProjectIdEl;
+  const customInputEl = (els && els.customInputEl) || reporterProjectIdCustomEl;
+  const deleteBtnEl = (els && els.deleteBtnEl) || deleteReporterCustomProjectBtn;
+  if (!selectEl) return;
   if (Array.isArray(apiProjects) && apiProjects.length) {
     reporterProjectsList = apiProjects;
   }
-  const current = selectedId != null ? String(selectedId).trim() : (reporterProjectIdEl.value || "");
-  reporterProjectIdEl.innerHTML = "";
+  const current =
+    selectedId != null ? String(selectedId).trim() : selectEl.value || "";
+  selectEl.innerHTML = "";
 
   const defaultOpt = document.createElement("option");
   defaultOpt.value = "";
   defaultOpt.textContent = "Uses properties if blank";
-  reporterProjectIdEl.appendChild(defaultOpt);
+  selectEl.appendChild(defaultOpt);
 
   const predefined = [
     { id: "2", label: "2 — Financial Management System - Kenya" },
@@ -2629,8 +3108,6 @@ function renderReporterProjectOptions(selectedId, apiProjects) {
   ];
 
   const allProjects = [];
-
-  // Add API projects or default projects
   const baseList = reporterProjectsList.length ? reporterProjectsList : predefined;
   for (const p of baseList) {
     const id = String(p.id);
@@ -2640,7 +3117,6 @@ function renderReporterProjectOptions(selectedId, apiProjects) {
     }
   }
 
-  // Ensure default predefined are also there if missing
   for (const p of predefined) {
     if (!allProjects.some((item) => item.id === p.id)) {
       allProjects.push(p);
@@ -2663,33 +3139,78 @@ function renderReporterProjectOptions(selectedId, apiProjects) {
     const opt = document.createElement("option");
     opt.value = p.id;
     opt.textContent = p.label;
-    reporterProjectIdEl.appendChild(opt);
+    selectEl.appendChild(opt);
   }
 
   const customOpt = document.createElement("option");
   customOpt.value = "custom";
   customOpt.textContent = "Other / Custom Project ID…";
-  reporterProjectIdEl.appendChild(customOpt);
+  selectEl.appendChild(customOpt);
 
   if (["", ...allProjects.map((p) => p.id)].includes(current)) {
-    reporterProjectIdEl.value = current;
-    if (reporterProjectIdCustomEl) {
-      reporterProjectIdCustomEl.classList.add("hidden");
-      reporterProjectIdCustomEl.value = "";
+    selectEl.value = current;
+    if (customInputEl) {
+      customInputEl.classList.add("hidden");
+      customInputEl.value = "";
     }
   } else if (current) {
-    reporterProjectIdEl.value = "custom";
-    if (reporterProjectIdCustomEl) {
-      reporterProjectIdCustomEl.classList.remove("hidden");
-      reporterProjectIdCustomEl.value = current;
+    selectEl.value = "custom";
+    if (customInputEl) {
+      customInputEl.classList.remove("hidden");
+      customInputEl.value = current;
     }
   }
+  updateCustomProjectDeleteBtn(selectEl, deleteBtnEl);
+}
+
+function renderReporterProjectOptions(selectedId, apiProjects) {
+  renderProjectOptions(selectedId, apiProjects, {
+    selectEl: reporterProjectIdEl,
+    customInputEl: reporterProjectIdCustomEl,
+    deleteBtnEl: deleteReporterCustomProjectBtn,
+  });
+}
+
+function renderReporterProjectBOptions(selectedId, apiProjects) {
+  renderProjectOptions(selectedId, apiProjects, {
+    selectEl: reporterProjectIdBEl,
+    customInputEl: reporterProjectIdBCustomEl,
+    deleteBtnEl: null,
+  });
+}
+
+function renderEpProjectOptions(selectedId, apiProjects) {
+  renderProjectOptions(selectedId, apiProjects, {
+    selectEl: epProjectIdEl,
+    customInputEl: epProjectIdCustomEl,
+    deleteBtnEl: deleteEpCustomProjectBtn,
+  });
+}
+
+async function loadSharedProjects() {
+  let projects = reporterProjectsList;
+  try {
+    const res = await fetch("/api/reporter/projects");
+    const data = await res.json();
+    if (data.ok && Array.isArray(data.projects) && data.projects.length) {
+      projects = data.projects;
+      reporterProjectsList = projects;
+    }
+  } catch {
+    /* keep cached / defaults */
+  }
+  const reporterCurrent = readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl);
+  renderReporterProjectOptions(reporterCurrent, projects);
+  const reporterBCurrent = readProjectIdFromSelect(reporterProjectIdBEl, reporterProjectIdBCustomEl);
+  renderReporterProjectBOptions(reporterBCurrent, projects);
+  const epCurrent = readProjectIdFromSelect(epProjectIdEl, epProjectIdCustomEl) || "5";
+  renderEpProjectOptions(epCurrent, projects);
 }
 
 function readReporterForm() {
   const planIds = reporterPlanFieldsEl
-    ? [...reporterPlanFieldsEl.querySelectorAll("input")]
-        .map((el) => el.value.trim())
+    ? [...reporterPlanFieldsEl.querySelectorAll(".plan-row")]
+        .map((row) => readPlanIdFromRow(row))
         .filter(Boolean)
     : [];
   let projectId = reporterProjectIdEl ? reporterProjectIdEl.value.trim() : "";
@@ -2699,11 +3220,20 @@ function readReporterForm() {
       saveCustomProject(projectId);
       renderReporterProjectOptions(projectId);
     }
-  } else if (projectId && !["2", "5"].includes(projectId)) {
+  } else if (projectId && !isLiveReporterProject(projectId)) {
     saveCustomProject(projectId);
+  }
+  let projectIdB = reporterProjectIdBEl ? reporterProjectIdBEl.value.trim() : "";
+  if (projectIdB === "custom") {
+    projectIdB = reporterProjectIdBCustomEl ? reporterProjectIdBCustomEl.value.trim() : "";
+    if (projectIdB) {
+      saveCustomProject(projectIdB);
+      renderReporterProjectBOptions(projectIdB);
+    }
   }
   return {
     projectId,
+    projectIdB,
     templateChoice: reporterTemplateChoiceEl ? reporterTemplateChoiceEl.value.trim() : "",
     planIds,
     includeDefects: reporterIncludeDefectsEl ? reporterIncludeDefectsEl.checked : true,
@@ -2714,33 +3244,62 @@ function readReporterForm() {
 function applyReporterForm(form) {
   const pId = form.projectId ? String(form.projectId).trim() : "";
   renderReporterProjectOptions(pId, form.projects || []);
+  const pIdB = form.projectIdB ? String(form.projectIdB).trim() : "";
+  renderReporterProjectBOptions(pIdB, form.projects || []);
   fillReporterTemplateOptions(form.templates || [], form.templateChoice || "");
-  setReporterPlanFields(form.planIds && form.planIds.length ? form.planIds : [""]);
+  updateReporterSitUi();
+  const sit = isSitReporterTemplate();
+  if (Array.isArray(form.plans) && form.plans.length && !sit) {
+    reporterPlansList = form.plans;
+  } else {
+    reporterPlansList = [];
+    reporterPlansListB = [];
+  }
+  const n = reporterExpectedPlanCount();
+  const planIds = sit ? [] : form.planIds || [];
+  setReporterPlanFields(planIdsForTemplateCount(planIds, n));
+  loadReporterPlans(pId).catch(() => {});
 }
 
-function showReporterAlerts(alerts) {
+function extraModuleCount(extraModules) {
+  if (!Array.isArray(extraModules) || !extraModules.length) return 0;
+  return extraModules.reduce(
+    (n, block) => n + (Array.isArray(block.modules) ? block.modules.length : 0),
+    0
+  );
+}
+
+function showReporterAlerts(alerts, options = {}) {
   if (!reporterAlertBannerEl) return;
-  if (!alerts || !alerts.length) {
+  const extraModules = options.extraModules || [];
+  const extraAdded = Boolean(options.extraModulesAdded);
+  const extraCount = extraModuleCount(extraModules);
+  const canAddModules = extraCount > 0 && !extraAdded;
+
+  if ((!alerts || !alerts.length) && !canAddModules && !extraAdded) {
     reporterAlertBannerEl.classList.add("hidden");
     reporterAlertBannerEl.innerHTML = "";
     reporterAlertBannerEl.removeAttribute("open");
     return;
   }
 
-  const moduleCount = alerts.reduce((n, a) => {
+  const moduleCount = (alerts || []).reduce((n, a) => {
     return (
       n +
       (a.details || []).filter((d) => String(d).trim().startsWith("-")).length
     );
-  }, 0);
-  const summaryText =
-    moduleCount > 0
-      ? `${alerts.length} note${alerts.length === 1 ? "" : "s"} · ${moduleCount} module${
-          moduleCount === 1 ? "" : "s"
-        } not in template`
-      : `${alerts.length} note${alerts.length === 1 ? "" : "s"} from this run`;
+  }, extraCount && !alerts.length ? extraCount : 0);
+  const summaryText = extraAdded
+    ? `Missing modules were added to this report`
+    : moduleCount > 0
+    ? `${(alerts || []).length || 1} note${
+        (alerts || []).length === 1 ? "" : "s"
+      } · ${moduleCount} module${moduleCount === 1 ? "" : "s"} not in template`
+    : `${(alerts || []).length} note${
+        (alerts || []).length === 1 ? "" : "s"
+      } from this run`;
 
-  const body = alerts
+  const body = (alerts || [])
     .map((a) => {
       const tips = [];
       const items = [];
@@ -2762,11 +3321,42 @@ function showReporterAlerts(alerts) {
     })
     .join("");
 
+  const actions = canAddModules
+    ? `<div class="run-notes-actions">
+        <p>Add these modules to this generated report only? The template file is not changed.</p>
+        <button type="button" class="btn" id="reporterAddModulesBtn">Add missing modules and generate again</button>
+        <button type="button" class="btn secondary" id="reporterKeepTemplateBtn">Keep template modules only</button>
+      </div>`
+    : extraAdded
+    ? `<div class="run-notes-actions"><p>Missing modules were written into this report. The SIT / status template file was not updated.</p></div>`
+    : "";
+
   reporterAlertBannerEl.innerHTML = `<summary class="run-notes-head"><span class="run-notes-icon" aria-hidden="true">⚠️</span><span class="run-notes-title">${escapeHtml(
     summaryText
-  )}</span><span class="run-notes-toggle">Click to expand</span></summary><div class="run-notes-body">${body}</div>`;
+  )}</span><span class="run-notes-toggle">Click to expand</span></summary><div class="run-notes-body">${body}${actions}</div>`;
   reporterAlertBannerEl.classList.remove("hidden");
-  reporterAlertBannerEl.removeAttribute("open");
+  if (canAddModules) reporterAlertBannerEl.setAttribute("open", "");
+  else reporterAlertBannerEl.removeAttribute("open");
+
+  const addBtn = document.getElementById("reporterAddModulesBtn");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      if (!lastReporterForm) return;
+      addBtn.disabled = true;
+      runReporterGenerate({ ...lastReporterForm, addMissingModules: true });
+    });
+  }
+  const keepBtn = document.getElementById("reporterKeepTemplateBtn");
+  if (keepBtn) {
+    keepBtn.addEventListener("click", () => {
+      const wrap = keepBtn.closest(".run-notes-actions");
+      if (wrap) {
+        wrap.innerHTML =
+          "<p>Kept template modules only. This report was not changed.</p>";
+      }
+      reporterAlertBannerEl.removeAttribute("open");
+    });
+  }
 }
 
 const REPORTER_STEP_ORDER = [
@@ -3009,7 +3599,10 @@ function showReporterResult(data) {
   reporterResultBoxEl.classList.remove("hidden");
   reporterResultMessageEl.textContent = data.message || "";
   reporterResultLinksEl.innerHTML = "";
-  showReporterAlerts(data.alerts || []);
+  showReporterAlerts(data.alerts || [], {
+    extraModules: data.extraModules || [],
+    extraModulesAdded: Boolean(data.extraModulesAdded),
+  });
 
   if (data.download && data.download.output) {
     const a = document.createElement("a");
@@ -3055,7 +3648,14 @@ function resetReporterForm() {
     reporterProjectIdCustomEl.value = "";
     reporterProjectIdCustomEl.classList.add("hidden");
   }
+  if (reporterProjectIdBEl) reporterProjectIdBEl.value = "";
+  if (reporterProjectIdBCustomEl) {
+    reporterProjectIdBCustomEl.value = "";
+    reporterProjectIdBCustomEl.classList.add("hidden");
+  }
+  updateReporterCustomProjectDeleteBtn();
   if (reporterTemplateChoiceEl) reporterTemplateChoiceEl.value = "";
+  updateReporterSitUi();
   if (reporterIncludeDefectsEl) reporterIncludeDefectsEl.checked = true;
   if (reporterIncludePdfEl) reporterIncludePdfEl.checked = false;
   setReporterPlanFields([""]);
@@ -3123,6 +3723,26 @@ if (reporterProjectIdEl) {
         reporterProjectIdCustomEl.value = "";
       }
     }
+    updateReporterCustomProjectDeleteBtn();
+    clearReporterPlanIdsForProjectChange("a");
+    const selected = readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl);
+    loadReporterPlans(selected).catch(() => {});
+  });
+}
+
+if (deleteReporterCustomProjectBtn) {
+  deleteReporterCustomProjectBtn.addEventListener("click", () => {
+    const selected = reporterProjectIdEl ? reporterProjectIdEl.value.trim() : "";
+    if (!isDeletableCustomProject(selected)) return;
+    const ok = window.confirm(
+      `Remove custom project ${selected} from this dropdown? Live SimplifyQA projects are not affected.`
+    );
+    if (!ok) return;
+    removeCustomProject(selected);
+    renderReporterProjectOptions("");
+    renderEpProjectOptions(readProjectIdFromSelect(epProjectIdEl, epProjectIdCustomEl));
+    clearReporterPlanIdsForProjectChange("a");
+    loadReporterPlans("").catch(() => {});
   });
 }
 
@@ -3132,6 +3752,79 @@ if (reporterProjectIdCustomEl) {
     if (customVal) {
       saveCustomProject(customVal);
       renderReporterProjectOptions(customVal);
+      renderEpProjectOptions(readProjectIdFromSelect(epProjectIdEl, epProjectIdCustomEl) || customVal);
+      clearReporterPlanIdsForProjectChange("a");
+      loadReporterPlans(customVal).catch(() => {});
+    }
+  });
+}
+
+if (reporterProjectIdBEl) {
+  reporterProjectIdBEl.addEventListener("change", () => {
+    if (reporterProjectIdBEl.value === "custom") {
+      if (reporterProjectIdBCustomEl) {
+        reporterProjectIdBCustomEl.classList.remove("hidden");
+        reporterProjectIdBCustomEl.focus();
+      }
+    } else if (reporterProjectIdBCustomEl) {
+      reporterProjectIdBCustomEl.classList.add("hidden");
+      reporterProjectIdBCustomEl.value = "";
+    }
+    clearReporterPlanIdsForProjectChange("b");
+    loadReporterPlans(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl)).catch(() => {});
+  });
+}
+
+if (reporterProjectIdBCustomEl) {
+  reporterProjectIdBCustomEl.addEventListener("change", () => {
+    const customVal = reporterProjectIdBCustomEl.value.trim();
+    if (customVal) {
+      saveCustomProject(customVal);
+      renderReporterProjectBOptions(customVal);
+      clearReporterPlanIdsForProjectChange("b");
+      loadReporterPlans(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl)).catch(() => {});
+    }
+  });
+}
+
+if (epProjectIdEl) {
+  epProjectIdEl.addEventListener("change", () => {
+    if (epProjectIdEl.value === "custom") {
+      if (epProjectIdCustomEl) {
+        epProjectIdCustomEl.classList.remove("hidden");
+        epProjectIdCustomEl.focus();
+      }
+    } else {
+      if (epProjectIdCustomEl) {
+        epProjectIdCustomEl.classList.add("hidden");
+        epProjectIdCustomEl.value = "";
+      }
+    }
+    updateCustomProjectDeleteBtn(epProjectIdEl, deleteEpCustomProjectBtn);
+  });
+}
+
+if (deleteEpCustomProjectBtn) {
+  deleteEpCustomProjectBtn.addEventListener("click", () => {
+    const selected = epProjectIdEl ? epProjectIdEl.value.trim() : "";
+    if (!isDeletableCustomProject(selected)) return;
+    const ok = window.confirm(
+      `Remove custom project ${selected} from this dropdown? Live SimplifyQA projects are not affected.`
+    );
+    if (!ok) return;
+    removeCustomProject(selected);
+    renderEpProjectOptions("");
+    renderReporterProjectOptions(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl));
+  });
+}
+
+if (epProjectIdCustomEl) {
+  epProjectIdCustomEl.addEventListener("change", () => {
+    const customVal = epProjectIdCustomEl.value.trim();
+    if (customVal) {
+      saveCustomProject(customVal);
+      renderEpProjectOptions(customVal);
+      renderReporterProjectOptions(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl) || customVal);
     }
   });
 }
@@ -3172,7 +3865,10 @@ if (reporterTemplateFileInput) {
 if (reporterTemplateChoiceEl) {
   reporterTemplateChoiceEl.addEventListener("change", () => {
     updateReporterTemplateHint();
+    updateReporterSitUi();
+    syncReporterPlanRowsToTemplate();
     validateReporterPlanCount();
+    loadReporterPlans(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl)).catch(() => {});
   });
 }
 
@@ -3227,45 +3923,58 @@ if (reporterCompareBtn) {
 
 const reporterFormEl = document.getElementById("reporterForm");
 if (reporterFormEl) {
-  reporterFormEl.addEventListener("submit", async (e) => {
+  reporterFormEl.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (reporterRunBtn) reporterRunBtn.disabled = true;
-    setStatus(reporterRunStatusEl, "Starting report generation…");
-    if (reporterProgressStepsEl) reporterProgressStepsEl.classList.remove("hidden");
-    setReporterProgress("prepare");
-    pollReporterProgress();
-
-    try {
-      const form = readReporterForm();
-      const res = await fetch("/api/reporter/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ form }),
-      });
-      const data = await res.json();
-      stopReporterProgressPolling();
-
-      if (!data.ok) {
-        setReporterProgress("prepare");
-        setStatus(reporterRunStatusEl, data.message || "Report generation failed.", "bad");
-        if (data.logLines && reporterLogOutputEl) {
-          reporterLogOutputEl.textContent = data.logLines.join("\n");
-          if (reporterLogDetailsEl) reporterLogDetailsEl.open = true;
-        }
-        showReporterAlerts(data.alerts || []);
-        return;
-      }
-
-      setReporterProgress("done");
-      setStatus(reporterRunStatusEl, data.message || "Report generated successfully.", "ok");
-      showReporterResult(data);
-      loadHistory().catch(() => {});
-      loadReporterSheets().catch(() => {});
-    } catch (err) {
-      stopReporterProgressPolling();
-      setStatus(reporterRunStatusEl, err.message || String(err), "bad");
-    } finally {
-      if (reporterRunBtn) reporterRunBtn.disabled = false;
-    }
+    runReporterGenerate(readReporterForm());
   });
+}
+
+async function runReporterGenerate(form) {
+  if (!form) return;
+  lastReporterForm = { ...form };
+  if (reporterRunBtn) reporterRunBtn.disabled = true;
+  setStatus(
+    reporterRunStatusEl,
+    form.addMissingModules
+      ? "Generating again with missing modules added…"
+      : "Starting report generation…"
+  );
+  if (reporterProgressStepsEl) reporterProgressStepsEl.classList.remove("hidden");
+  setReporterProgress("prepare");
+  pollReporterProgress();
+
+  try {
+    const res = await fetch("/api/reporter/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ form }),
+    });
+    const data = await res.json();
+    stopReporterProgressPolling();
+
+    if (!data.ok) {
+      setReporterProgress("prepare");
+      setStatus(reporterRunStatusEl, data.message || "Report generation failed.", "bad");
+      if (data.logLines && reporterLogOutputEl) {
+        reporterLogOutputEl.textContent = data.logLines.join("\n");
+        if (reporterLogDetailsEl) reporterLogDetailsEl.open = true;
+      }
+      showReporterAlerts(data.alerts || [], {
+        extraModules: data.extraModules || [],
+        extraModulesAdded: Boolean(data.extraModulesAdded),
+      });
+      return;
+    }
+
+    setReporterProgress("done");
+    setStatus(reporterRunStatusEl, data.message || "Report generated successfully.", "ok");
+    showReporterResult(data);
+    loadHistory().catch(() => {});
+    loadReporterSheets().catch(() => {});
+  } catch (err) {
+    stopReporterProgressPolling();
+    setStatus(reporterRunStatusEl, err.message || String(err), "bad");
+  } finally {
+    if (reporterRunBtn) reporterRunBtn.disabled = false;
+  }
 }

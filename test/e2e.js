@@ -667,6 +667,12 @@ async function main() {
         html.includes('id="cmpSaveMapBtn"')
     );
     ok(
+      "Map EP allows multiple entities and per-entity assignees",
+      html.includes('id="epEntityChecks"') &&
+        html.includes('id="epAssigneeFields"') &&
+        html.includes("1st entity maps to the 1st assignee")
+    );
+    ok(
       "header logos from Icea Reporter are present",
       html.includes("/logo/ICEA%20Lion.png") &&
         html.includes("/logo/Simplify-icon.png") &&
@@ -1084,6 +1090,61 @@ async function main() {
       ok("EP multi-module sheet 2 is Fixed Assets Management", epMultiWb.SheetNames.includes("Fixed Assets Management"));
     }
 
+    const multiEntWb = XLSX.utils.book_new();
+    const multiEntWs = XLSX.utils.aoa_to_sheet([
+      ["Testcase ID", "Testcase Name", "Module", "Execution Type", "", "", "Entity", "", "", "", "Selected Version(/s)"],
+      ["TC-201", "Life payment", "Accounts Payable", "Manual", "", "", "Life UG", "", "", "", "v1.0"],
+      ["TC-202", "Gen payment", "Accounts Payable", "Manual", "", "", "Gen UG", "", "", "", "v1.0"],
+      ["TC-203", "TZ payment", "Accounts Payable", "Manual", "", "", "Gen TZ", "", "", "", "v1.0"],
+      ["TC-204", "Shared AP rule", "Accounts Payable", "Manual", "", "", "Life UG, Gen UG", "", "", "", "v1.0"],
+    ]);
+    XLSX.utils.book_append_sheet(multiEntWb, multiEntWs, "TestCases");
+    const multiEntBuf = XLSX.write(multiEntWb, { type: "buffer", bookType: "xlsx" });
+    const epMultiEntFd = new FormData();
+    epMultiEntFd.append(
+      "summary",
+      new Blob([multiEntBuf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      "MultiEntitySummary.xlsx"
+    );
+    epMultiEntFd.append("module", "Accounts Payable");
+    epMultiEntFd.append("entity", "Life UG");
+    epMultiEntFd.append("entity", "Gen UG");
+    epMultiEntFd.append("assigneeEmail", "life.owner@icealion.com");
+    epMultiEntFd.append("assigneeEmail", "gen.owner@icealion.com");
+    const epMultiEntRes = await jsonReq(base, "/api/ep/generate", { method: "POST", body: epMultiEntFd });
+    ok(
+      "EP multi-entity generate includes only selected entities",
+      epMultiEntRes.data &&
+        epMultiEntRes.data.ok === true &&
+        epMultiEntRes.data.summary &&
+        epMultiEntRes.data.summary.testcaseCount === 3
+    );
+    if (epMultiEntRes.data && epMultiEntRes.data.download && epMultiEntRes.data.download.excel) {
+      const epMultiEntDl = await fetch(base + epMultiEntRes.data.download.excel);
+      const epMultiEntFile = Buffer.from(await epMultiEntDl.arrayBuffer());
+      const epMultiEntWb = XLSX.read(epMultiEntFile, { type: "buffer" });
+      ok("EP multi-entity writes a separate sheet per entity", epMultiEntWb.SheetNames.length === 2);
+      ok(
+        "EP multi-entity sheet names include module and entity",
+        epMultiEntWb.SheetNames.includes("Accounts Payable_Life UG") &&
+          epMultiEntWb.SheetNames.includes("Accounts Payable_Gen UG")
+      );
+      const lifeRows = XLSX.utils.sheet_to_json(epMultiEntWb.Sheets["Accounts Payable_Life UG"], { header: 1 });
+      const genRows = XLSX.utils.sheet_to_json(epMultiEntWb.Sheets["Accounts Payable_Gen UG"], { header: 1 });
+      const lifeById = Object.fromEntries(lifeRows.slice(1).map((r) => [r[0], r]));
+      const genById = Object.fromEntries(genRows.slice(1).map((r) => [r[0], r]));
+      const allIds = [...lifeRows.slice(1), ...genRows.slice(1)].map((r) => r[0]);
+      ok("EP multi-entity maps 1st entity to 1st assignee", lifeById["TC-201"] && lifeById["TC-201"][5] === "life.owner@icealion.com");
+      ok("EP multi-entity maps 2nd entity to 2nd assignee", genById["TC-202"] && genById["TC-202"][5] === "gen.owner@icealion.com");
+      ok("EP multi-entity copies shared TC onto every matching entity sheet", Boolean(lifeById["TC-204"]) && Boolean(genById["TC-204"]));
+      ok("EP shared TC uses the sheet entity assignee", lifeById["TC-204"][5] === "life.owner@icealion.com" && genById["TC-204"][5] === "gen.owner@icealion.com");
+      ok("EP multi-entity excludes unselected entity", !allIds.includes("TC-203"));
+      ok("EP Life sheet does not include Gen-only TCs", !lifeById["TC-202"] && lifeRows.length === 3);
+      ok("EP Gen sheet does not include Life-only TCs", !genById["TC-201"] && genRows.length === 3);
+    }
+
     // Test exact module matching does not leak E2E sub-modules (e.g. General Ledger vs E2E General Ledger)
     const testWb = XLSX.utils.book_new();
     const testRows = [
@@ -1194,7 +1255,7 @@ async function main() {
     const indexHtml = fs.readFileSync(path.join(ROOT, "public", "index.html"), "utf8");
     ok("UI contains ICEA LION Reporter tab", indexHtml.includes('id="tabReporter"'));
     ok("UI contains viewReporter container", indexHtml.includes('id="viewReporter"'));
-    ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"'));
+    ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"') && indexHtml.includes('id="reporterSitProjectBWrap"'));
   } finally {
     if (originalProps !== null) {
       fs.writeFileSync(propsPath, originalProps, "utf8");

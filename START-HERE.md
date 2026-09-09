@@ -106,7 +106,7 @@ npm start
 You should see something like:
 
 ```
-ICEA LION Test Management Hub UI  v1.3.0  http://localhost:3100
+ICEA LION Test Management Hub UI  v1.3.1  http://localhost:3100
 ```
 
 Leave this window **open**. Closing it stops the app.

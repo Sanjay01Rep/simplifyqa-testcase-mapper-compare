@@ -13,6 +13,9 @@ OUTPUT_FILE_2=output/FMS 4 EP tracker.xlsx
 TEMPLATE_3=Template/E2E Report.xlsx
 OUTPUT_FILE_3=output/E2E Report.xlsx
 
+TEMPLATE_4=Template/SIT Template.xlsx
+OUTPUT_FILE_4=output/SIT Status tracker.xlsx
+
 # Which template to use for this run (also selects matching OUTPUT_FILE_n)
 TEMPLATE_CHOICE=1
 
