@@ -45,6 +45,8 @@ const tabMap = document.getElementById("tabMap");
 const tabCompare = document.getElementById("tabCompare");
 const tabEp = document.getElementById("tabEp");
 const tabReporter = document.getElementById("tabReporter");
+const tabPpt = document.getElementById("tabPpt");
+const viewPptEl = document.getElementById("viewPpt");
 
 // --- DOM Elements: Compare Module ---
 const cmpFileAEl = document.getElementById("cmpFileA");
@@ -187,6 +189,31 @@ const reporterPropertiesTextEl = document.getElementById("reporterPropertiesText
 const reporterPropsStatusEl = document.getElementById("reporterPropsStatus");
 const resetReporterBtn = document.getElementById("resetReporterBtn");
 const reloadReporterFormBtn = document.getElementById("reloadReporterFormBtn");
+
+const pptForm = document.getElementById("pptForm");
+const resetPptBtn = document.getElementById("resetPptBtn");
+const pptTitleChoiceEl = document.getElementById("pptTitleChoice");
+const pptTitleCustomEl = document.getElementById("pptTitleCustom");
+const pptMeetingDateEl = document.getElementById("pptMeetingDate");
+const pptDateStatusEl = document.getElementById("pptDateStatus");
+const pptDsrFileEl = document.getElementById("pptDsrFile");
+const pptExistingFileEl = document.getElementById("pptExistingFile");
+const pptSheetFieldEl = document.getElementById("pptSheetField");
+const pptSheetSelectEl = document.getElementById("pptSheetSelect");
+const pptSheetHintEl = document.getElementById("pptSheetHint");
+const pptPreviewBtn = document.getElementById("pptPreviewBtn");
+const pptGenerateBtn = document.getElementById("pptGenerateBtn");
+const pptStatusEl = document.getElementById("pptStatus");
+const pptPreviewBoxEl = document.getElementById("pptPreviewBox");
+const pptResultBoxEl = document.getElementById("pptResultBox");
+const pptResultMessageEl = document.getElementById("pptResultMessage");
+const pptResultLinksEl = document.getElementById("pptResultLinks");
+const pptAlertBannerEl = document.getElementById("pptAlertBanner");
+const pptLogDetailsEl = document.getElementById("pptLogDetails");
+const pptLogOutputEl = document.getElementById("pptLogOutput");
+const pptDsrDropEl = document.getElementById("pptDsrDrop");
+
+const PPT_DATE_RE = /^(?:[1-9]|[12]\d|3[01]) Sept \d{4}$/;
 
 const XLSX_ONLY_MSG = "Only .xlsx files are supported. Please choose a .xlsx workbook.";
 const STEP_ORDER = ["upload", "review", "prereq", "generate", "done"];
@@ -1135,15 +1162,17 @@ function setView(which) {
   const isCompare = which === "compare";
   const isEp = which === "ep";
   const isReporter = which === "reporter";
+  const isPpt = which === "ppt";
 
   if (viewMapEl) viewMapEl.classList.toggle("hidden", !isMap);
   if (viewCompareEl) viewCompareEl.classList.toggle("hidden", !isCompare);
   if (viewEpEl) viewEpEl.classList.toggle("hidden", !isEp);
   if (viewReporterEl) viewReporterEl.classList.toggle("hidden", !isReporter);
+  if (viewPptEl) viewPptEl.classList.toggle("hidden", !isPpt);
 
   if (previewPanelEl) {
     const hasMapPreview = previewTableBody && previewTableBody.children.length;
-    previewPanelEl.classList.toggle("hidden", isCompare || isReporter || (!isMap && !isEp && !hasMapPreview));
+    previewPanelEl.classList.toggle("hidden", isCompare || isReporter || isPpt || (!isMap && !isEp && !hasMapPreview));
   }
   if (cmpPreviewPanelEl) {
     const hasCmpPreview = cmpPreviewTableBody && cmpPreviewTableBody.children.length;
@@ -1165,11 +1194,19 @@ function setView(which) {
     tabReporter.classList.toggle("active", isReporter);
     tabReporter.setAttribute("aria-selected", isReporter ? "true" : "false");
   }
+  if (tabPpt) {
+    tabPpt.classList.toggle("active", isPpt);
+    tabPpt.setAttribute("aria-selected", isPpt ? "true" : "false");
+  }
   if (isCompare) setCompareStep(1);
   if (isReporter) {
     loadReporterFormDefaults().catch(() => {});
     loadReporterSchedule().catch(() => {});
     loadReporterSheets().catch(() => {});
+  }
+  if (isPpt) {
+    loadPptFiles().catch(() => {});
+    syncPptGenerateEnabled();
   }
   if (isEp) {
     loadSharedProjects().catch(() => {});
@@ -1777,6 +1814,7 @@ if (tabMap) tabMap.addEventListener("click", () => setView("map"));
 if (tabCompare) tabCompare.addEventListener("click", () => setView("compare"));
 if (tabEp) tabEp.addEventListener("click", () => setView("ep"));
 if (tabReporter) tabReporter.addEventListener("click", () => setView("reporter"));
+if (tabPpt) tabPpt.addEventListener("click", () => setView("ppt"));
 
 function showEpNotice(message, kind) {
   if (!epNoticeEl) return;
@@ -3978,3 +4016,332 @@ async function runReporterGenerate(form) {
     if (reporterRunBtn) reporterRunBtn.disabled = false;
   }
 }
+
+function pptDateValid() {
+  return PPT_DATE_RE.test(String(pptMeetingDateEl && pptMeetingDateEl.value || "").trim());
+}
+
+function pptTitleOk() {
+  const choice = pptTitleChoiceEl ? pptTitleChoiceEl.value : "";
+  if (choice === "custom") return Boolean(pptTitleCustomEl && pptTitleCustomEl.value.trim());
+  return Boolean(choice);
+}
+
+function pptHasExcel() {
+  return Boolean(
+    (pptDsrFileEl && pptDsrFileEl.files && pptDsrFileEl.files[0]) ||
+      (pptExistingFileEl && pptExistingFileEl.value)
+  );
+}
+
+function syncPptGenerateEnabled() {
+  const ok =
+    pptDateValid() &&
+    pptTitleOk() &&
+    pptHasExcel() &&
+    pptSheetSelectEl &&
+    pptSheetSelectEl.value;
+  if (pptGenerateBtn) pptGenerateBtn.disabled = !ok;
+  if (pptDateStatusEl) {
+    const typed = String(pptMeetingDateEl && pptMeetingDateEl.value || "").trim();
+    if (!typed) setStatus(pptDateStatusEl, "");
+    else if (pptDateValid()) setStatus(pptDateStatusEl, "Date format looks good.", "ok");
+    else setStatus(pptDateStatusEl, 'Use 16 Sept 2026 (day, then "Sept", then year).', "bad");
+  }
+}
+
+function appendPptFormData(fd) {
+  const file = pptDsrFileEl && pptDsrFileEl.files && pptDsrFileEl.files[0];
+  if (file) fd.append("dsr", file);
+  else if (pptExistingFileEl && pptExistingFileEl.value) {
+    fd.append("existingFile", pptExistingFileEl.value);
+  }
+  if (pptSheetSelectEl) fd.append("sheetName", pptSheetSelectEl.value || "");
+  if (pptTitleChoiceEl) fd.append("titleChoice", pptTitleChoiceEl.value || "");
+  if (pptTitleCustomEl) fd.append("titleCustom", pptTitleCustomEl.value || "");
+  if (pptMeetingDateEl) fd.append("meetingDate", pptMeetingDateEl.value.trim());
+  return fd;
+}
+
+async function loadPptFiles() {
+  try {
+    const res = await fetch("/api/ppt/files");
+    const data = await res.json();
+    if (data.ok) fillSelect(pptExistingFileEl, data.files, "Or pick an existing Weekly DSR file");
+  } catch {
+    /* ignore */
+  }
+}
+
+function fillPptSheets(sheets, suggestedDates) {
+  if (!pptSheetSelectEl) return;
+  const current = pptSheetSelectEl.value;
+  pptSheetSelectEl.innerHTML = "";
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "-- Choose sheet --";
+  pptSheetSelectEl.appendChild(blank);
+  for (const name of sheets || []) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    pptSheetSelectEl.appendChild(opt);
+  }
+  if (sheets && sheets.length === 1) pptSheetSelectEl.value = sheets[0];
+  else if ([...pptSheetSelectEl.options].some((o) => o.value === current)) {
+    pptSheetSelectEl.value = current;
+  }
+  if (pptSheetFieldEl) pptSheetFieldEl.classList.toggle("hidden", !(sheets && sheets.length));
+  if (pptSheetHintEl) {
+    pptSheetHintEl.classList.toggle("hidden", !(sheets && sheets.length > 1));
+  }
+  const chosen = pptSheetSelectEl.value;
+  if (chosen && suggestedDates && suggestedDates[chosen] && pptMeetingDateEl && !pptMeetingDateEl.value.trim()) {
+    pptMeetingDateEl.value = suggestedDates[chosen];
+  } else if (chosen && suggestedDates && suggestedDates[chosen] && pptMeetingDateEl && !pptDateValid()) {
+    pptMeetingDateEl.value = suggestedDates[chosen];
+  }
+  syncPptGenerateEnabled();
+}
+
+async function loadPptSheets() {
+  if (!pptHasExcel()) {
+    fillPptSheets([]);
+    return;
+  }
+  const fd = appendPptFormData(new FormData());
+  try {
+    const res = await fetch("/api/ppt/sheets", { method: "POST", body: fd });
+    const data = await parseApiJson(res);
+    if (!data.ok) {
+      setStatus(pptStatusEl, data.message || "Could not read sheets.", "bad");
+      return;
+    }
+    fillPptSheets(data.sheets || [], data.suggestedDates || {});
+  } catch (err) {
+    setStatus(pptStatusEl, err.message || String(err), "bad");
+  }
+}
+
+function pptPassClass(pctText) {
+  const n = Number(String(pctText || "").replace("%", "").trim());
+  if (!Number.isFinite(n)) return "";
+  if (n <= 50) return "ppt-red";
+  if (n <= 80) return "ppt-amber";
+  return "ppt-green";
+}
+
+function renderPptPreview(data) {
+  if (!pptPreviewBoxEl) return;
+  const status = data.status || [];
+  const defects = data.defects || [];
+  const alerts = data.alerts || [];
+  let html = `<p class="hint">Sheet <strong>${escapeHtml(data.sheetName || "")}</strong>${
+    data.suggestedDate ? ` · suggested date ${escapeHtml(data.suggestedDate)}` : ""
+  }. Extra modules will be added as rows. Kenya slide is not changed.</p>`;
+  if (alerts.length) {
+    html += `<div class="run-notes" style="margin-bottom:0.8rem"><div class="run-notes-body">${alerts
+      .map((a) => `<p class="alert-tip">${escapeHtml(a)}</p>`)
+      .join("")}</div></div>`;
+  }
+  for (const s of status) {
+    html += `<h3>${escapeHtml(s.entity || s.title || "Status")} · Exec ${escapeHtml(
+      s.executionRate
+    )} · Pass ${escapeHtml(s.overallPassRate)}</h3>`;
+    html += `<div class="preview-scroll"><table class="preview-table"><thead><tr><th>Module</th><th>Passed</th><th>Failed</th><th>Blocked</th><th>In Progress</th><th>Not Executed</th><th>Total</th><th>Pass Rate</th></tr></thead><tbody>`;
+    for (const m of s.modules || []) {
+      html += `<tr><td>${escapeHtml(m.name)}</td><td>${m.passed}</td><td>${m.failed}</td><td>${m.blocked}</td><td>${m.inProgress}</td><td>${m.notExecuted}</td><td>${m.total}</td><td class="${pptPassClass(
+        m.passRate
+      )}">${escapeHtml(m.passRate)}</td></tr>`;
+    }
+    if (s.totals) {
+      html += `<tr><td><strong>Total</strong></td><td>${s.totals.passed}</td><td>${s.totals.failed}</td><td>${s.totals.blocked}</td><td>${s.totals.inProgress}</td><td>${s.totals.notExecuted}</td><td>${s.totals.total}</td><td class="${pptPassClass(
+        s.totals.passRate
+      )}"><strong>${escapeHtml(s.totals.passRate)}</strong></td></tr>`;
+    }
+    html += `</tbody></table></div>`;
+  }
+  for (const d of defects) {
+    html += `<h3>${escapeHtml(d.entity || d.title || "Defects")} · Closure ${escapeHtml(
+      d.closureRate
+    )} · Resolution ${escapeHtml(d.resolutionRate)}</h3>`;
+    html += `<div class="preview-scroll"><table class="preview-table"><thead><tr><th>Module</th><th>Closed</th><th>Deferred</th><th>Fixed</th><th>Pending</th><th>Total</th></tr></thead><tbody>`;
+    for (const m of d.modules || []) {
+      html += `<tr><td>${escapeHtml(m.name)}</td><td>${m.closed}</td><td>${m.deferred}</td><td>${m.fixed}</td><td>${m.pending}</td><td>${m.total}</td></tr>`;
+    }
+    if (d.totals) {
+      html += `<tr><td><strong>Total</strong></td><td>${d.totals.closed}</td><td>${d.totals.deferred}</td><td>${d.totals.fixed}</td><td>${d.totals.pending}</td><td>${d.totals.total}</td></tr>`;
+    }
+    html += `</tbody></table></div>`;
+  }
+  pptPreviewBoxEl.innerHTML = html;
+  pptPreviewBoxEl.classList.remove("hidden");
+}
+
+function showPptAlerts(alerts) {
+  if (!pptAlertBannerEl) return;
+  if (!alerts || !alerts.length) {
+    pptAlertBannerEl.classList.add("hidden");
+    pptAlertBannerEl.innerHTML = "";
+    return;
+  }
+  pptAlertBannerEl.innerHTML = `<summary class="run-notes-head"><span class="run-notes-icon" aria-hidden="true">⚠️</span><span class="run-notes-title">${alerts.length} note${
+    alerts.length === 1 ? "" : "s"
+  } from this run</span><span class="run-notes-toggle">Click to expand</span></summary><div class="run-notes-body">${alerts
+    .map((a) => `<p class="alert-tip">${escapeHtml(a)}</p>`)
+    .join("")}</div>`;
+  pptAlertBannerEl.classList.remove("hidden");
+  pptAlertBannerEl.setAttribute("open", "");
+}
+
+async function runPptPreview() {
+  if (!pptHasExcel()) {
+    setStatus(pptStatusEl, "Upload or pick a Weekly DSR Excel first.", "bad");
+    return;
+  }
+  if (!pptSheetSelectEl || !pptSheetSelectEl.value) {
+    await loadPptSheets();
+    if (!pptSheetSelectEl.value) {
+      setStatus(pptStatusEl, "Choose which Excel sheet to use.", "bad");
+      return;
+    }
+  }
+  setStatus(pptStatusEl, "Reading sheet…");
+  try {
+    const res = await fetch("/api/ppt/preview", { method: "POST", body: appendPptFormData(new FormData()) });
+    const data = await parseApiJson(res);
+    if (!data.ok) {
+      setStatus(pptStatusEl, data.message || "Preview failed.", "bad");
+      return;
+    }
+    if (data.suggestedDate && pptMeetingDateEl && !pptMeetingDateEl.value.trim()) {
+      pptMeetingDateEl.value = data.suggestedDate;
+    }
+    renderPptPreview(data);
+    setStatus(pptStatusEl, `Preview ready from ${data.sheetName}.`, "ok");
+    syncPptGenerateEnabled();
+  } catch (err) {
+    setStatus(pptStatusEl, err.message || String(err), "bad");
+  }
+}
+
+async function runPptGenerate(e) {
+  if (e) e.preventDefault();
+  syncPptGenerateEnabled();
+  if (pptGenerateBtn && pptGenerateBtn.disabled) {
+    if (!pptDateValid()) setStatus(pptStatusEl, 'Date must look like 16 Sept 2026.', "bad");
+    else setStatus(pptStatusEl, "Fill title, a valid date, Excel, and sheet before generating.", "bad");
+    return;
+  }
+  setStatus(pptStatusEl, "Generating PPT…");
+  if (pptGenerateBtn) pptGenerateBtn.disabled = true;
+  try {
+    const res = await fetch("/api/ppt/generate", { method: "POST", body: appendPptFormData(new FormData()) });
+    const data = await parseApiJson(res);
+    if (!data.ok) {
+      setStatus(pptStatusEl, data.message || "Generate failed.", "bad");
+      return;
+    }
+    setStatus(pptStatusEl, data.message || "PPT generated.", "ok");
+    if (data.preview) renderPptPreview(data.preview);
+    if (pptResultBoxEl) pptResultBoxEl.classList.remove("hidden");
+    if (pptResultMessageEl) pptResultMessageEl.textContent = data.message || "";
+    if (pptResultLinksEl) {
+      pptResultLinksEl.innerHTML = "";
+      if (data.download && data.download.ppt) {
+        const a = document.createElement("a");
+        a.href = data.download.ppt;
+        a.textContent = "Download PPT";
+        a.setAttribute("download", "");
+        pptResultLinksEl.appendChild(a);
+        const open = document.createElement("a");
+        open.href = "#";
+        open.textContent = "Open PPT";
+        open.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          fetch("/api/launch-excel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file: data.outputFile }),
+          })
+            .then((r) => r.json())
+            .then((p) => setStatus(pptStatusEl, p.message || "Opened.", p.ok ? "ok" : "bad"))
+            .catch((err) => setStatus(pptStatusEl, err.message || String(err), "bad"));
+        });
+        pptResultLinksEl.appendChild(open);
+      }
+      if (data.download && data.download.log) {
+        const a = document.createElement("a");
+        a.href = data.download.log;
+        a.textContent = "Download Log";
+        a.setAttribute("download", "");
+        pptResultLinksEl.appendChild(a);
+      }
+    }
+    showPptAlerts(data.alerts || []);
+    if (data.logLines && pptLogOutputEl) pptLogOutputEl.textContent = data.logLines.join("\n");
+    loadHistory().catch(() => {});
+  } catch (err) {
+    setStatus(pptStatusEl, err.message || String(err), "bad");
+  } finally {
+    syncPptGenerateEnabled();
+  }
+}
+
+function resetPptForm() {
+  if (pptTitleChoiceEl) pptTitleChoiceEl.value = "WEEKLY WORKSTREAM MEETING";
+  if (pptTitleCustomEl) {
+    pptTitleCustomEl.value = "";
+    pptTitleCustomEl.classList.add("hidden");
+  }
+  if (pptMeetingDateEl) pptMeetingDateEl.value = "";
+  if (pptDsrFileEl) pptDsrFileEl.value = "";
+  if (pptExistingFileEl) pptExistingFileEl.value = "";
+  fillPptSheets([]);
+  if (pptPreviewBoxEl) {
+    pptPreviewBoxEl.classList.add("hidden");
+    pptPreviewBoxEl.innerHTML = "";
+  }
+  if (pptResultBoxEl) pptResultBoxEl.classList.add("hidden");
+  if (pptAlertBannerEl) pptAlertBannerEl.classList.add("hidden");
+  setStatus(pptStatusEl, "");
+  setStatus(pptDateStatusEl, "");
+  syncPptGenerateEnabled();
+}
+
+if (pptTitleChoiceEl) {
+  pptTitleChoiceEl.addEventListener("change", () => {
+    if (pptTitleCustomEl) {
+      pptTitleCustomEl.classList.toggle("hidden", pptTitleChoiceEl.value !== "custom");
+      if (pptTitleChoiceEl.value === "custom") pptTitleCustomEl.focus();
+    }
+    syncPptGenerateEnabled();
+  });
+}
+if (pptTitleCustomEl) pptTitleCustomEl.addEventListener("input", syncPptGenerateEnabled);
+if (pptMeetingDateEl) pptMeetingDateEl.addEventListener("input", syncPptGenerateEnabled);
+if (pptSheetSelectEl) {
+  pptSheetSelectEl.addEventListener("change", () => {
+    syncPptGenerateEnabled();
+    runPptPreview().catch(() => {});
+  });
+}
+if (pptDsrFileEl) {
+  pptDsrFileEl.addEventListener("change", () => {
+    if (pptDsrFileEl.files[0] && pptExistingFileEl) pptExistingFileEl.value = "";
+    loadPptSheets().then(() => runPptPreview()).catch(() => {});
+  });
+}
+if (pptExistingFileEl) {
+  pptExistingFileEl.addEventListener("change", () => {
+    if (pptExistingFileEl.value && pptDsrFileEl) pptDsrFileEl.value = "";
+    loadPptSheets().then(() => runPptPreview()).catch(() => {});
+  });
+}
+bindDropzone(pptDsrDropEl, pptDsrFileEl, () => {
+  setStatus(pptStatusEl, XLSX_ONLY_MSG, "bad");
+});
+if (pptPreviewBtn) pptPreviewBtn.addEventListener("click", () => runPptPreview());
+if (pptForm) pptForm.addEventListener("submit", runPptGenerate);
+if (resetPptBtn) resetPptBtn.addEventListener("click", resetPptForm);
+

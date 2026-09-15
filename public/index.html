@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=1.3.1" />
+    <link rel="stylesheet" href="/styles.css?v=1.4.0" />
   </head>
   <body>
     <header class="topbar">
@@ -34,7 +34,7 @@
             <span class="server-bot-icon" aria-hidden="true">🤖</span>
             <span class="server-bot-text" id="serverBotText">Checking…</span>
           </button>
-          <span class="version-badge" id="appVersion" title="App version">v1.3.1</span>
+          <span class="version-badge" id="appVersion" title="App version">v1.4.0</span>
           <img id="logoRight" class="logo simplify" src="/logo/Simplify-icon.png" alt="" />
           <span class="simplify-label">Simplify3x</span>
         </div>
@@ -54,6 +54,9 @@
         </button>
         <button type="button" class="module-tab" id="tabReporter" data-view="reporter" role="tab" aria-selected="false">
           ICEA LION Reporter
+        </button>
+        <button type="button" class="module-tab" id="tabPpt" data-view="ppt" role="tab" aria-selected="false">
+          Weekly PPT Report
         </button>
       </nav>
 
@@ -787,6 +790,92 @@
             </section>
           </div>
         </div>
+
+        <div id="viewPpt" class="hidden">
+          <section class="panel" aria-labelledby="ppt-heading">
+            <div class="panel-head">
+              <h2 id="ppt-heading">Weekly PPT Report</h2>
+              <div class="btn-row">
+                <button type="button" class="btn ghost" id="resetPptBtn">Reset</button>
+              </div>
+            </div>
+            <p class="hint">
+              Fills the Weekly Workstream PPT template from a Weekly DSR Excel. Slide 2 (Kenya) is left unchanged.
+              Module Pass Rate fills the whole cell: red (0–50%), amber (above 50% through 80%), and green (above 80%), with black text.
+            </p>
+
+            <form id="pptForm" class="form" autocomplete="off">
+              <div class="grid-2">
+                <label class="field">
+                  <span>Meeting title *</span>
+                  <select id="pptTitleChoice" name="titleChoice">
+                    <option value="WEEKLY WORKSTREAM MEETING">WEEKLY WORKSTREAM MEETING</option>
+                    <option value="STEER CO MEETING">STEER CO MEETING</option>
+                    <option value="custom">Other / custom title…</option>
+                  </select>
+                  <input
+                    id="pptTitleCustom"
+                    name="titleCustom"
+                    type="text"
+                    class="hidden"
+                    placeholder="Enter custom meeting title"
+                    autocomplete="off"
+                    style="margin-top: 0.45rem;"
+                  />
+                </label>
+                <label class="field">
+                  <span>Date *</span>
+                  <input
+                    id="pptMeetingDate"
+                    name="meetingDate"
+                    type="text"
+                    placeholder="16 Sept 2026"
+                    autocomplete="off"
+                  />
+                  <p class="hint" id="pptDateHint">Use 16 Sept 2026 (day, then Sept, then year). Generate stays off until this matches.</p>
+                  <p class="status" id="pptDateStatus" aria-live="polite"></p>
+                </label>
+              </div>
+
+              <div class="field">
+                <span>Weekly DSR Excel *</span>
+                <div class="dropzone" id="pptDsrDrop" data-label="Weekly DSR">
+                  <p class="drop-hint">Drop Weekly DSR .xlsx here or browse</p>
+                  <input id="pptDsrFile" name="dsr" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                </div>
+                <select id="pptExistingFile">
+                  <option value="">Or pick an existing Weekly DSR file</option>
+                </select>
+                <label class="field mapper-header-field hidden" id="pptSheetField">
+                  <span>Excel sheet *</span>
+                  <select id="pptSheetSelect" name="sheetName">
+                    <option value="">-- Choose sheet --</option>
+                  </select>
+                </label>
+                <p class="hint hidden" id="pptSheetHint">This file has more than one sheet. Choose the sheet to fill the PPT.</p>
+              </div>
+
+              <div class="actions sticky-actions">
+                <button type="button" class="btn secondary" id="pptPreviewBtn">Review sheet</button>
+                <button type="submit" class="btn primary" id="pptGenerateBtn" disabled>Generate PPT</button>
+                <p class="status" id="pptStatus" aria-live="polite"></p>
+              </div>
+            </form>
+
+            <div id="pptPreviewBox" class="hidden ppt-preview"></div>
+
+            <div class="result hidden" id="pptResultBox">
+              <h3>PPT Result</h3>
+              <p id="pptResultMessage"></p>
+              <div class="result-links" id="pptResultLinks"></div>
+              <details id="pptAlertBanner" class="run-notes hidden" role="status"></details>
+              <details id="pptLogDetails">
+                <summary>Run log</summary>
+                <pre id="pptLogOutput"></pre>
+              </details>
+            </div>
+          </section>
+        </div>
         </div>
 
         <aside class="side-stack">
@@ -905,6 +994,6 @@
         </p>
       </footer>
     </div>
-    <script src="/app.js?v=1.3.1"></script>
+    <script src="/app.js?v=1.4.0"></script>
   </body>
 </html>

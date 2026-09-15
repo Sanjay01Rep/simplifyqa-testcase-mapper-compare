@@ -24,6 +24,7 @@ output/
 logs/
 .playwright-mcp/
 agent-tools/
+Weekly DSR/
 ~$*.xlsx
 *.tmp
 

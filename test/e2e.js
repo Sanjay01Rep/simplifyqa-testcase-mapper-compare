@@ -1256,6 +1256,15 @@ async function main() {
     ok("UI contains ICEA LION Reporter tab", indexHtml.includes('id="tabReporter"'));
     ok("UI contains viewReporter container", indexHtml.includes('id="viewReporter"'));
     ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"') && indexHtml.includes('id="reporterSitProjectBWrap"'));
+    ok("UI contains Weekly PPT Report tab", indexHtml.includes('id="tabPpt"') && indexHtml.includes('id="viewPpt"') && indexHtml.includes('id="pptForm"'));
+
+    const pptHealth = await jsonReq(base, "/api/ppt/health");
+    ok(
+      "ppt health returns ok",
+      pptHealth.data && pptHealth.data.ok === true && "templateFound" in pptHealth.data
+    );
+    const pptFiles = await jsonReq(base, "/api/ppt/files");
+    ok("ppt files returns files array", pptFiles.data && pptFiles.data.ok === true && Array.isArray(pptFiles.data.files));
   } finally {
     if (originalProps !== null) {
       fs.writeFileSync(propsPath, originalProps, "utf8");

@@ -39,6 +39,7 @@ const {
   saveBearerToken,
 } = require("./lib/loadEnv");
 const { createReporterRouter } = require("./lib/reporter/routes");
+const { createPptReportRouter } = require("./lib/pptReport/routes");
 
 const ROOT = __dirname;
 const explicitPort = process.env.PORT;
@@ -1105,6 +1106,7 @@ app.get("/api/preview/output", (req, res) => {
 });
 
 app.use("/api/reporter", createReporterRouter());
+app.use("/api/ppt", createPptReportRouter({ root: ROOT }));
 
 app.post("/api/launch-excel", (req, res) => {
   try {
