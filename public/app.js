@@ -157,7 +157,11 @@ const deleteReporterCustomProjectBtn = document.getElementById("deleteReporterCu
 const reporterProjectIdBEl = document.getElementById("reporterProjectIdB");
 const reporterProjectIdBCustomEl = document.getElementById("reporterProjectIdBCustom");
 const reporterSitProjectBWrap = document.getElementById("reporterSitProjectBWrap");
+const reporterSprint3Wrap = document.getElementById("reporterSprint3Wrap");
+const reporterSprintFilterEl = document.getElementById("reporterSprintFilter");
 const reporterTemplateChoiceEl = document.getElementById("reporterTemplateChoice");
+const reporterUploadTemplateBtn = document.getElementById("reporterUploadTemplateBtn");
+const reporterDeleteTemplateBtn = document.getElementById("reporterDeleteTemplateBtn");
 const reporterTemplateFileInput = document.getElementById("reporterTemplateFileInput");
 const reporterTemplateUploadStatus = document.getElementById("reporterTemplateUploadStatus");
 const reporterTemplateHintEl = document.getElementById("reporterTemplateHint");
@@ -2702,7 +2706,22 @@ function fillReporterTemplateOptions(templates, selected) {
   }
   reporterTemplateChoiceEl.value = current;
   updateReporterTemplateHint();
+  updateReporterDeleteBtn();
   validateReporterPlanCount();
+}
+
+function isCustomReporterTemplate(choice) {
+  const n = Number(choice);
+  return Number.isInteger(n) && n >= 5 && n <= 50;
+}
+
+function updateReporterDeleteBtn() {
+  if (!reporterDeleteTemplateBtn || !reporterTemplateChoiceEl) return;
+  const meta = findReporterTemplateMeta(reporterTemplateChoiceEl.value);
+  reporterDeleteTemplateBtn.disabled = !(
+    isCustomReporterTemplate(reporterTemplateChoiceEl.value) &&
+    (meta ? meta.deletable !== false : true)
+  );
 }
 
 function findReporterTemplateMeta(choice) {
@@ -2721,8 +2740,14 @@ function updateReporterTemplateHint() {
   if (meta.description) parts.push(meta.description);
   if (meta.sitDualProject) {
     parts.push("Select Uganda as Project A and Tanzania as Project B. Three execution-plan dropdowns: Gen UG, Life UG, Gen TZ.");
+  } else if (meta.sprint3Defects) {
+    parts.push("Sprint 3: enter the Sprint for defects (example: Build Wave 1 Sprint 2). Sprint and Entity columns are enabled before the defect export.");
+  } else if (meta.kind === "workstream") {
+    parts.push("Shows 1 execution plan dropdown. All testcases on that plan are counted into one status row. Champion name is left as in the template.");
   } else if (meta.statusSections) {
     parts.push(`Shows ${meta.statusSections} execution plan dropdown(s). Pick from the live plan list.`);
+  } else if (isCustomReporterTemplate(meta.choice)) {
+    parts.push("Reporter needs a Module-wise Daily Status table with a MODULE column, or a workstream Daily Status Report without a MODULE column.");
   }
   reporterTemplateHintEl.textContent = parts.join(" ");
 }
@@ -2928,6 +2953,15 @@ function isSitReporterTemplate() {
   return Boolean(meta && meta.sitDualProject);
 }
 
+function isSprint3ReporterTemplate() {
+  const choice =
+    (reporterTemplateChoiceEl && reporterTemplateChoiceEl.value.trim()) || "";
+  const meta = findReporterTemplateMeta(choice);
+  if (meta && meta.sprint3Defects) return true;
+  const file = meta && meta.template ? String(meta.template) : "";
+  return /sprint\s*3/i.test(file);
+}
+
 const SIT_PLAN_LABELS = [
   "1. General Uganda | SIT (Uganda project)",
   "2. Life Uganda | SIT (Uganda project)",
@@ -2947,6 +2981,17 @@ function updateReporterSitUi() {
     const b = readProjectIdFromSelect(reporterProjectIdBEl, reporterProjectIdBCustomEl);
     if (!a) renderReporterProjectOptions("5", reporterProjectsList);
     if (!b) renderReporterProjectBOptions("6", reporterProjectsList);
+  }
+  updateReporterSprint3Ui();
+}
+
+function updateReporterSprint3Ui() {
+  const sprint3 = isSprint3ReporterTemplate();
+  if (reporterSprint3Wrap) reporterSprint3Wrap.classList.toggle("hidden", !sprint3);
+  if (reporterSprintFilterEl) {
+    reporterSprintFilterEl.required = Boolean(
+      sprint3 && (!reporterIncludeDefectsEl || reporterIncludeDefectsEl.checked)
+    );
   }
 }
 
@@ -3276,6 +3321,7 @@ function readReporterForm() {
     planIds,
     includeDefects: reporterIncludeDefectsEl ? reporterIncludeDefectsEl.checked : true,
     includePdf: reporterIncludePdfEl ? reporterIncludePdfEl.checked : false,
+    defectSprint: reporterSprintFilterEl ? reporterSprintFilterEl.value.trim() : "",
   };
 }
 
@@ -3286,6 +3332,9 @@ function applyReporterForm(form) {
   renderReporterProjectBOptions(pIdB, form.projects || []);
   fillReporterTemplateOptions(form.templates || [], form.templateChoice || "");
   updateReporterSitUi();
+  if (reporterSprintFilterEl) {
+    reporterSprintFilterEl.value = form.defectSprint || "";
+  }
   const sit = isSitReporterTemplate();
   if (Array.isArray(form.plans) && form.plans.length && !sit) {
     reporterPlansList = form.plans;
@@ -3867,6 +3916,12 @@ if (epProjectIdCustomEl) {
   });
 }
 
+if (reporterUploadTemplateBtn && reporterTemplateFileInput) {
+  reporterUploadTemplateBtn.addEventListener("click", () => {
+    reporterTemplateFileInput.click();
+  });
+}
+
 if (reporterTemplateFileInput) {
   reporterTemplateFileInput.addEventListener("change", async () => {
     const file = reporterTemplateFileInput.files && reporterTemplateFileInput.files[0];
@@ -3903,10 +3958,49 @@ if (reporterTemplateFileInput) {
 if (reporterTemplateChoiceEl) {
   reporterTemplateChoiceEl.addEventListener("change", () => {
     updateReporterTemplateHint();
+    updateReporterDeleteBtn();
     updateReporterSitUi();
     syncReporterPlanRowsToTemplate();
     validateReporterPlanCount();
     loadReporterPlans(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl)).catch(() => {});
+  });
+}
+
+if (reporterDeleteTemplateBtn) {
+  reporterDeleteTemplateBtn.addEventListener("click", async () => {
+    const choice = reporterTemplateChoiceEl ? reporterTemplateChoiceEl.value : "";
+    if (!isCustomReporterTemplate(choice)) return;
+    const meta = findReporterTemplateMeta(choice);
+    const file = meta && meta.template ? String(meta.template).split(/[/\\]/).pop() : `Template ${choice}`;
+    if (!window.confirm(`Remove "${file}" from the template list? Built-in templates stay. The Excel file in Template/ is kept.`)) {
+      return;
+    }
+    setStatus(reporterTemplateUploadStatus, `Removing "${file}"…`);
+    try {
+      const res = await fetch("/api/reporter/delete-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ choice }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(reporterTemplateUploadStatus, data.message || "Could not remove template.", "bad");
+        return;
+      }
+      setStatus(reporterTemplateUploadStatus, data.message || "Template removed.", "ok");
+      if (data.form && data.form.templates) {
+        fillReporterTemplateOptions(data.form.templates, data.choice || "");
+        updateReporterSitUi();
+        syncReporterPlanRowsToTemplate();
+        validateReporterPlanCount();
+        loadReporterPlans(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl)).catch(() => {});
+      }
+      if (reporterPropsDetailsEl && reporterPropsDetailsEl.open) {
+        loadReporterProperties().catch(() => {});
+      }
+    } catch (err) {
+      setStatus(reporterTemplateUploadStatus, err.message || "Delete request failed.", "bad");
+    }
   });
 }
 
@@ -3959,6 +4053,10 @@ if (reporterCompareBtn) {
   reporterCompareBtn.addEventListener("click", () => runReporterCompare());
 }
 
+if (reporterIncludeDefectsEl) {
+  reporterIncludeDefectsEl.addEventListener("change", () => updateReporterSprint3Ui());
+}
+
 const reporterFormEl = document.getElementById("reporterForm");
 if (reporterFormEl) {
   reporterFormEl.addEventListener("submit", (e) => {
@@ -3969,6 +4067,18 @@ if (reporterFormEl) {
 
 async function runReporterGenerate(form) {
   if (!form) return;
+  if (
+    isSprint3ReporterTemplate() &&
+    form.includeDefects !== false &&
+    !String(form.defectSprint || "").trim()
+  ) {
+    setStatus(
+      reporterRunStatusEl,
+      "Sprint 3 needs a Sprint filter for defects (for example: Build Wave 1 Sprint 2).",
+      "bad"
+    );
+    return;
+  }
   lastReporterForm = { ...form };
   if (reporterRunBtn) reporterRunBtn.disabled = true;
   setStatus(

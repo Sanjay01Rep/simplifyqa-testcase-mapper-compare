@@ -1,0 +1,12 @@
+---
+description: Do not run UI validation or browser tests unless the user asks
+alwaysApply: true
+---
+
+# UI validation tests
+
+Do **not** run UI validation, Playwright, browser click-throughs, or Hub page checks unless the user explicitly asks.
+
+If a UI check would help confirm a change, **ask first** and wait. Do not start the Hub only to drive the browser.
+
+Allowed without asking: code inspection, API/unit/e2e `node test/e2e.js` only when the user requested tests, and Hub start when the user wants the app running.

@@ -296,6 +296,7 @@ code {
 }
 
 .field {
+  position: relative;
   display: grid;
   gap: 0.3rem;
 }
@@ -588,9 +589,47 @@ textarea:focus {
 }
 
 .btn.ghost {
-  background: transparent;
+  background: #fff;
   border-color: var(--line);
-  color: var(--ink);
+  color: var(--brand-deep);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  border-color: var(--brand);
+  background: #f3f7fb;
+}
+
+.template-choice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.template-choice-head .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+.template-choice-head > span {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.file-input-hidden {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0 !important;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .status {
@@ -1448,14 +1487,14 @@ pre {
 
 td.ppt-red,
 .ppt-red {
-  background: #e85a4f;
+  background: #e53935;
   color: #000000;
   font-weight: 600;
 }
 
 td.ppt-amber,
 .ppt-amber {
-  background: #f5c94a;
+  background: #ffc107;
   color: #000000;
   font-weight: 600;
 }

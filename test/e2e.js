@@ -1243,9 +1243,49 @@ async function main() {
       body: tplForm,
     });
     const repUploadData = await repUploadRes.json();
-    ok("reporter upload-template endpoint registers new template", repUploadData.ok === true && Boolean(repUploadData.choice));
+    ok(
+      "reporter upload-template registers as a custom dropdown slot",
+      repUploadData.ok === true && Number(repUploadData.choice) >= 5
+    );
+    const afterUpload = await jsonReq(base, "/api/reporter/form-defaults");
+    const uploadedChoice = String(repUploadData.choice || "");
+    ok(
+      "uploaded template appears in the reporter dropdown list",
+      afterUpload.data &&
+        afterUpload.data.form &&
+        Array.isArray(afterUpload.data.form.templates) &&
+        afterUpload.data.form.templates.some((t) => String(t.choice) === uploadedChoice)
+    );
 
-    // Clean up uploaded test template file
+    const delBuiltIn = await jsonReq(base, "/api/reporter/delete-template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ choice: "1" }),
+    });
+    ok(
+      "built-in template cannot be deleted from dropdown",
+      delBuiltIn.data && delBuiltIn.data.ok === false
+    );
+
+    const delCustom = await jsonReq(base, "/api/reporter/delete-template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ choice: uploadedChoice }),
+    });
+    ok(
+      "uploaded template can be removed from dropdown",
+      delCustom.data && delCustom.data.ok === true
+    );
+    const afterDelete = await jsonReq(base, "/api/reporter/form-defaults");
+    ok(
+      "removed template is no longer in the dropdown list",
+      afterDelete.data &&
+        afterDelete.data.form &&
+        Array.isArray(afterDelete.data.form.templates) &&
+        !afterDelete.data.form.templates.some((t) => String(t.choice) === uploadedChoice)
+    );
+
+    // Clean up leftover test template file if delete kept it on disk
     const uploadedTplFile = path.join(ROOT, "Template", "Custom_Upload_Template_4.xlsx");
     if (fs.existsSync(uploadedTplFile)) {
       try { fs.unlinkSync(uploadedTplFile); } catch {}
@@ -1256,6 +1296,446 @@ async function main() {
     ok("UI contains ICEA LION Reporter tab", indexHtml.includes('id="tabReporter"'));
     ok("UI contains viewReporter container", indexHtml.includes('id="viewReporter"'));
     ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"') && indexHtml.includes('id="reporterSitProjectBWrap"'));
+    ok("UI contains Sprint 3 defect sprint filter field", indexHtml.includes('id="reporterSprint3Wrap"') && indexHtml.includes('id="reporterSprintFilter"'));
+    ok(
+      "reporter Upload template button is present and not disabled",
+      indexHtml.includes('id="reporterUploadTemplateBtn"') &&
+        !/<button[^>]*id="reporterUploadTemplateBtn"[^>]*\bdisabled\b/i.test(indexHtml)
+    );
+    ok("reporter Delete template button is present", indexHtml.includes('id="reporterDeleteTemplateBtn"'));
+
+    const {
+      resolveModuleName,
+      resolveDefectModuleName,
+      passRateBand,
+      applyPassRateFill,
+      restoreStatusRateRowMerges,
+      isFileLockError,
+      defectExportHasEntityColumn,
+      isEntityPreferenceColumn,
+      findEntityPreferenceIndex,
+      defectEntityColumnForProject,
+      defectFilterPreferenceBody,
+      mergeEntityIntoDefectFilter,
+      resolveDefectFilterForProject,
+      capturedDefectFilterForProject,
+      preferenceHasProjectEntity,
+      resolveDefectRowEntities,
+      aggregateDefectExport,
+      entityCountsForSection,
+      extraDefectModulesForSection,
+      buildDefectSectionSummary,
+      discoverStatusSections,
+    } = require("../lib/reporter/reporter");
+    const catalog = ["Cash & Bank Management", "Integrations", "Accounts Payable"];
+    ok(
+      "Cash and Bank Management matches Cash & Bank Management",
+      resolveModuleName("Cash and Bank Management", catalog) === "Cash & Bank Management"
+    );
+    ok(
+      "Intergations (Footprint) matches Integrations",
+      resolveModuleName("Intergations (Footprint)", catalog) === "Integrations"
+    );
+    ok(
+      "Intergations (ILMS) matches Integrations",
+      resolveDefectModuleName("Intergations (ILMS)", catalog) === "Integrations"
+    );
+    ok("pass rate 0–50 is red", passRateBand(0.42).hex === "#FF0000");
+    ok("pass rate 50 is red", passRateBand(0.5).hex === "#FF0000");
+    ok("pass rate above 50 through 80 is amber", passRateBand(0.8).hex === "#FFC000");
+    ok("pass rate above 80 is green", passRateBand(0.81).hex === "#92D050");
+    ok(
+      "Entity in export columns is detected without touching preference",
+      defectExportHasEntityColumn(["ID", "Module", "Entity", "State"]) &&
+        !defectExportHasEntityColumn(["ID", "Module", "State"])
+    );
+    ok("locked Excel error is detected from EBUSY", isFileLockError({ code: "EBUSY" }));
+    ok(
+      "locked Excel error is detected from Windows in-use message",
+      isFileLockError({ message: "EBUSY: resource busy or locked, open 'output.xlsx'" })
+    );
+    ok(
+      "Entity preference matcher finds ENTITY column",
+      isEntityPreferenceColumn({ originalLabel: "ENTITY", label: "Entity", key: "CUSTFIELD_x" }) &&
+        findEntityPreferenceIndex([
+          { originalLabel: "Id", label: "ID" },
+          { originalLabel: "Entity", label: "Entity", isChecked: false },
+        ]) === 1
+    );
+    ok(
+      "Uganda Entity column uses project 5 field key",
+      defectEntityColumnForProject(5).key === "CUSTFIELD_96ENTITY_6_7780l" &&
+        defectEntityColumnForProject(5).projectId === 5
+    );
+    ok(
+      "Tanzania Entity column uses project 6 field key",
+      defectEntityColumnForProject(6).key === "CUSTFIELD_96ENTITY_6_2hk5a" &&
+        defectEntityColumnForProject(6).projectId === 6
+    );
+    ok(
+      "Kenya Entity column uses project 2 field key",
+      defectEntityColumnForProject(2).key === "CUSTFIELD_96Entity_6_dhd40"
+    );
+    const ugMerged = mergeEntityIntoDefectFilter(
+      [{ originalLabel: "Id", projectId: 5, isChecked: true }],
+      5
+    );
+    ok(
+      "Uganda merge appends ENTITY without replacing other columns",
+      ugMerged.changed &&
+        ugMerged.defectFilter.length === 2 &&
+        ugMerged.defectFilter[1].key === "CUSTFIELD_96ENTITY_6_7780l" &&
+        !mergeEntityIntoDefectFilter(ugMerged.defectFilter, 5).changed
+    );
+    const swapped = mergeEntityIntoDefectFilter(
+      [
+        {
+          originalLabel: "Entity",
+          key: "CUSTFIELD_96Entity_6_dhd40",
+          projectId: 2,
+          isChecked: true,
+        },
+      ],
+      5
+    );
+    ok(
+      "wrong-project Entity column is replaced with Uganda field",
+      swapped.changed && swapped.defectFilter[0].key === "CUSTFIELD_96ENTITY_6_7780l"
+    );
+    const putBody = defectFilterPreferenceBody(ugMerged.defectFilter);
+    ok(
+      "preference PUT body is only defectFilter",
+      Object.keys(putBody).length === 1 && Array.isArray(putBody.defectFilter)
+    );
+    const tzFilter = [
+      { originalLabel: "Id", projectId: 6, isChecked: true },
+      {
+        originalLabel: "ENTITY",
+        key: "CUSTFIELD_96ENTITY_6_2hk5a",
+        projectId: 6,
+        isChecked: true,
+        shownIn: ["TABLE", "EDIT", "CREATE"],
+      },
+    ];
+    const ugFromTz = resolveDefectFilterForProject(tzFilter, 5);
+    ok(
+      "wrong-project preference is replaced with captured Uganda column list",
+      ugFromTz.changed &&
+        ugFromTz.reason === "wrong-project-columns" &&
+        preferenceHasProjectEntity(ugFromTz.defectFilter, 5) &&
+        capturedDefectFilterForProject(5).some((c) => c.key === "CUSTFIELD_96ENTITY_6_7780l")
+    );
+    const tzFromCaptured = resolveDefectFilterForProject(
+      capturedDefectFilterForProject(6),
+      6
+    );
+    ok(
+      "matching Tanzania preference is left unchanged",
+      !tzFromCaptured.changed && tzFromCaptured.reason === "already-enabled"
+    );
+    ok(
+      "Excel ENTITY header is not enough to treat preference as enabled",
+      defectExportHasEntityColumn(["ID", "ENTITY"]) &&
+        !preferenceHasProjectEntity(tzFilter, 5)
+    );
+    const sprint3Path = path.join(ROOT, "Template", "Sprint 3 Kenya.xlsx");
+    if (fs.existsSync(sprint3Path)) {
+      const ExcelJS = require("exceljs");
+      const sprintWb = new ExcelJS.Workbook();
+      await sprintWb.xlsx.readFile(sprint3Path);
+      const sprintSheet = sprintWb.worksheets[0];
+      applyPassRateFill(sprintSheet.getCell("J4"), 0.42);
+      applyPassRateFill(sprintSheet.getCell("J5"), 0.9);
+      applyPassRateFill(sprintSheet.getCell("J6"), 0.7);
+      const sprintRound = new ExcelJS.Workbook();
+      await sprintRound.xlsx.load(await sprintWb.xlsx.writeBuffer());
+      const sprintSaved = sprintRound.worksheets[0];
+      const argb = (addr) =>
+        String((sprintSaved.getCell(addr).fill && sprintSaved.getCell(addr).fill.fgColor && sprintSaved.getCell(addr).fill.fgColor.argb) || "").toUpperCase();
+      ok("Sprint 3 Kenya 42% Pass Rate stays red after save", argb("J4") === "FFFF0000");
+      ok("Sprint 3 Kenya 90% Pass Rate stays green after save", argb("J5") === "FF92D050");
+      ok("Sprint 3 Kenya 70% Pass Rate stays amber after save", argb("J6") === "FFFFC000");
+      ok(
+        "Sprint 3 Kenya Pass Rate header keeps template fill",
+        argb("J3") === "FF92D050"
+      );
+    }
+    const sitPath = path.join(ROOT, "Template", "SIT Template.xlsx");
+    if (fs.existsSync(sitPath)) {
+      const ExcelJS = require("exceljs");
+      const sitWb = new ExcelJS.Workbook();
+      await sitWb.xlsx.readFile(sitPath);
+      const sitSheet = sitWb.worksheets[0];
+      restoreStatusRateRowMerges(sitSheet, 10, {
+        passed: 4,
+        blocked: 6,
+        inProgress: 7,
+        total: 9,
+        passRate: 10,
+      });
+      const sitMerges = ((sitSheet.model && sitSheet.model.merges) || []).map((m) =>
+        String(m).toUpperCase()
+      );
+      ok(
+        "SIT Execution Rate value merge stops at Total, not Pass Rate",
+        sitMerges.includes("G10:I10") && !sitMerges.includes("G10:J10")
+      );
+      ok(
+        "SIT Execution Rate label merge stays Passed through Blocked",
+        sitMerges.includes("D10:F10")
+      );
+    }
+    const workstreamFill = require("../lib/reporter/workstreamFill");
+    const asWhenPath = path.join(ROOT, "Template", "As and When Commission.xlsx");
+    const fmsPath = path.join(ROOT, "Template", "FMS Status tracker.xlsx");
+    if (fs.existsSync(fmsPath)) {
+      const fmsKind = workstreamFill.inspectTemplateFile(fmsPath);
+      ok(
+        "FMS Status tracker stays module-wise",
+        fmsKind && fmsKind.kind === "module-wise" && fmsKind.statusSections >= 2
+      );
+    }
+    if (fs.existsSync(asWhenPath)) {
+      const asWhenKind = workstreamFill.inspectTemplateFile(asWhenPath);
+      ok(
+        "As and When Commission is a workstream template",
+        asWhenKind && asWhenKind.kind === "workstream" && asWhenKind.statusSections === 1
+      );
+      const ExcelJS = require("exceljs");
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(asWhenPath);
+      const sheet = wb.worksheets[0];
+      const wsSections = workstreamFill.discoverWorkstreamStatusSections(sheet);
+      ok("workstream discover finds Daily Status Report", wsSections.length === 1);
+      ok(
+        "As and When is not a module-wise template",
+        discoverStatusSections(sheet).length === 0
+      );
+      const layout = wsSections[0].layout;
+      const dataRow = sheet.getRow(layout.firstDataRow);
+      const champCol = layout.cols.champion || 1;
+      const championBefore = String(dataRow.getCell(champCol).value || "");
+      workstreamFill.writeWorkstreamSection(sheet, wsSections[0].title, {
+        totalSummary: {
+          passed: 10,
+          failed: 2,
+          blocked: 1,
+          inProgress: 0,
+          notExecuted: 3,
+          total: 16,
+          passRate: 10 / 15,
+        },
+        executionRate: 12 / 15,
+        overallPassRate: 10 / 15,
+      });
+      ok(
+        "workstream fill keeps champion name",
+        String(sheet.getRow(layout.firstDataRow).getCell(champCol).value || "") === championBefore
+      );
+      ok(
+        "workstream fill writes passed count on the status row",
+        Number(sheet.getRow(layout.firstDataRow).getCell(layout.cols.passed).value) === 10
+      );
+      const defectSections = workstreamFill.discoverWorkstreamDefectSections(sheet);
+      ok("workstream discover finds Defects section", defectSections.length >= 1);
+    }
+    const os = require("os");
+    const XLSXlib = require("xlsx");
+    const mixedEntityXlsx = path.join(os.tmpdir(), `entity-cols-${Date.now()}.xlsx`);
+    XLSXlib.writeFile(
+      {
+        SheetNames: ["s"],
+        Sheets: {
+          s: XLSXlib.utils.aoa_to_sheet([
+            ["Module", "ENTITY", "Entities", "State"],
+            ["Budgeting", "", "Life KE", "New"],
+            ["Reinsurance", "", "Life Kenya", "Closed"],
+          ]),
+        },
+      },
+      mixedEntityXlsx
+    );
+    const mixedAgg = aggregateDefectExport(mixedEntityXlsx);
+    try { fs.unlinkSync(mixedEntityXlsx); } catch {}
+    ok(
+      "empty ENTITY column still maps from Entity values",
+      mixedAgg.skippedNoEntity === 0 &&
+        mixedAgg.mappedRows === 2 &&
+        mixedAgg.byEntity.has("life kenya")
+    );
+    const tmpEp = path.join(os.tmpdir(), `ws-ep-${Date.now()}.xlsx`);
+    XLSXlib.writeFile(
+      {
+        SheetNames: ["s"],
+        Sheets: {
+          s: XLSXlib.utils.aoa_to_sheet([
+            ["Assigned Date", "", "TC", "", "", "", "Module", "", "Status"],
+            ["", "", "TC-1", "", "", "", "Foo", "", "PASSED"],
+            ["", "", "TC-2", "", "", "", "Bar", "", "FAILED"],
+            ["", "", "TC-3", "", "", "", "Baz", "", "BLOCKED"],
+          ]),
+        },
+      },
+      tmpEp
+    );
+    const wsAgg = workstreamFill.aggregateWorkstreamExport(tmpEp);
+    try { fs.unlinkSync(tmpEp); } catch {}
+    ok(
+      "workstream counts all testcases regardless of module",
+      wsAgg.exportRows === 3 &&
+        wsAgg.totalSummary.passed === 1 &&
+        wsAgg.totalSummary.failed === 1 &&
+        wsAgg.totalSummary.blocked === 1 &&
+        wsAgg.totalSummary.total === 3
+    );
+    ok(
+      "blank defect ENTITY uses Tanzania default",
+      resolveDefectRowEntities("", "General Tanzania").join() === "General Tanzania"
+    );
+    ok(
+      "Gen KE/Williamson maps to General Kenya, not split names",
+      resolveDefectRowEntities("Gen KE/Williamson").join() === "General Kenya"
+    );
+    ok(
+      "Life KE,Gen KE/Williamson counts toward both Kenya entities",
+      resolveDefectRowEntities("Life KE,Gen KE/Williamson").slice().sort().join("|") ===
+        "General Kenya|Life Kenya"
+    );
+    const genKeXlsx = path.join(os.tmpdir(), `gen-ke-${Date.now()}.xlsx`);
+    XLSXlib.writeFile(
+      {
+        SheetNames: ["s"],
+        Sheets: {
+          s: XLSXlib.utils.aoa_to_sheet([
+            ["Module", "Entity", "State"],
+            ["Budgeting", "Gen KE/Williamson", "New"],
+            ["Budgeting", "Life KE", "Closed"],
+            ["Reinsurance", "Life KE,Gen KE/Williamson", "Fixed"],
+          ]),
+        },
+      },
+      genKeXlsx
+    );
+    const genKeAgg = aggregateDefectExport(genKeXlsx);
+    try { fs.unlinkSync(genKeXlsx); } catch {}
+    const genKeCounts = entityCountsForSection(genKeAgg.byEntity, "General Kenya");
+    const genKeBudget = genKeCounts.get("Budgeting") || {};
+    const genKeReins = genKeCounts.get("Reinsurance") || {};
+    ok(
+      "General Kenya defect summary is filled from Gen KE/Williamson",
+      !genKeAgg.byEntity.has("gen ke") &&
+        !genKeAgg.byEntity.has("williamson") &&
+        genKeAgg.byEntity.has("general kenya") &&
+        genKeBudget.pending === 1 &&
+        genKeReins.fixed === 1
+    );
+    ok(
+      "empty template modules still fill from extra defect rows",
+      (() => {
+        const byEntity = new Map();
+        const mods = new Map();
+        mods.set("Procurement", { closed: 2, deferred: 0, fixed: 0, pending: 1 });
+        byEntity.set("general kenya", mods);
+        const counts = entityCountsForSection(byEntity, "General Kenya");
+        const summary = buildDefectSectionSummary(
+          ["Budgeting", "Reinsurance"],
+          counts,
+          [{ name: "Procurement", closed: 2, deferred: 0, fixed: 0, pending: 1, total: 3 }]
+        );
+        return summary.rows.length === 1 && summary.totalSummary.total === 3;
+      })()
+    );
+    ok(
+      "Life Uganda extras are per section even if another block already lists Procurement",
+      (() => {
+        const mods = new Map();
+        mods.set("Fixed Assets Management", {
+          closed: 0,
+          deferred: 0,
+          fixed: 0,
+          pending: 3,
+        });
+        mods.set("Cash & Bank Management", {
+          closed: 0,
+          deferred: 0,
+          fixed: 0,
+          pending: 1,
+        });
+        mods.set("Procurement", { closed: 0, deferred: 0, fixed: 0, pending: 1 });
+        const extras = extraDefectModulesForSection(
+          ["Fixed Assets Management"],
+          mods
+        );
+        const summary = buildDefectSectionSummary(
+          ["Fixed Assets Management"],
+          mods,
+          extras
+        );
+        return (
+          extras.length === 2 &&
+          summary.rows.length === 3 &&
+          summary.totalSummary.total === 5 &&
+          extraDefectModulesForSection(
+            ["Fixed Assets Management", "Cash and Bank Management", "Procurement"],
+            mods
+          ).length === 0
+        );
+      })()
+    );
+    const downloadsDir = path.join(ROOT, "downloads");
+    const tzFiles = fs.existsSync(downloadsDir)
+      ? fs.readdirSync(downloadsDir).filter((n) => /^Defects_6_/.test(n)).sort()
+      : [];
+    if (tzFiles.length) {
+      const tzAgg = aggregateDefectExport(path.join(downloadsDir, tzFiles[tzFiles.length - 1]), {
+        defaultEntity: "General Tanzania",
+      });
+      const tzCounts = entityCountsForSection(tzAgg.byEntity, "General Tanzania");
+      const tzSummary = buildDefectSectionSummary(
+        ["Fixed Assets Management", "Cash and Bank Management", "Procurement"],
+        tzCounts,
+        []
+      );
+      ok("TZ blank-ENTITY export maps rows", tzAgg.mappedRows >= 1 && tzAgg.usedDefaultEntity >= 1);
+      ok("TZ defect summary is not empty", tzSummary.totalSummary.total >= 1 && tzSummary.rows.length >= 1);
+    }
+    const sprint3 = require("../lib/reporter/sprint3Defects");
+    ok(
+      "Sprint 3 template path is detected from filename",
+      sprint3.isSprint3TemplatePath("Template/Sprint 3 Kenya.xlsx") &&
+        !sprint3.isSprint3TemplatePath("Template/SIT Template.xlsx")
+    );
+    ok(
+      "Sprint 2 input matches Build Wave 1 Sprint 2 and not Sprint 1",
+      sprint3.sprintValueMatches("Build Wave 1 Sprint 2", "Build Wave 1 Sprint 2") &&
+        sprint3.sprintValueMatches("Build Wave 1 Sprint 2", "Sprint 2") &&
+        !sprint3.sprintValueMatches("Build Wave 1 Sprint 1", "Sprint 2") &&
+        !sprint3.sprintValueMatches("Build Wave 1 Sprint 12", "Sprint 1")
+    );
+    const sprintXlsx = path.join(os.tmpdir(), `sprint-filter-${Date.now()}.xlsx`);
+    XLSXlib.writeFile(
+      {
+        SheetNames: ["s"],
+        Sheets: {
+          s: XLSXlib.utils.aoa_to_sheet([
+            ["Module", "ENTITY", "Sprint", "State"],
+            ["Budgeting", "Life KE", "Build Wave 1 Sprint 2", "New"],
+            ["Budgeting", "Life KE", "Build Wave 1 Sprint 1", "New"],
+          ]),
+        },
+      },
+      sprintXlsx
+    );
+    const sprintAgg = aggregateDefectExport(sprintXlsx, {
+      sprintFilter: "Build Wave 1 Sprint 2",
+    });
+    ok(
+      "Sprint 3 filter keeps matching rows and skips the rest",
+      sprintAgg.mappedRows === 1 && sprintAgg.skippedSprint === 1
+    );
+    try {
+      fs.unlinkSync(sprintXlsx);
+    } catch {}
     ok("UI contains Weekly PPT Report tab", indexHtml.includes('id="tabPpt"') && indexHtml.includes('id="viewPpt"') && indexHtml.includes('id="pptForm"'));
 
     const pptHealth = await jsonReq(base, "/api/ppt/health");

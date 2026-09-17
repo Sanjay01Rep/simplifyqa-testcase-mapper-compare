@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=1.4.0" />
+    <link rel="stylesheet" href="/styles.css?v=1.5.0" />
   </head>
   <body>
     <header class="topbar">
@@ -34,7 +34,7 @@
             <span class="server-bot-icon" aria-hidden="true">🤖</span>
             <span class="server-bot-text" id="serverBotText">Checking…</span>
           </button>
-          <span class="version-badge" id="appVersion" title="App version">v1.4.0</span>
+          <span class="version-badge" id="appVersion" title="App version">v1.5.0</span>
           <img id="logoRight" class="logo simplify" src="/logo/Simplify-icon.png" alt="" />
           <span class="simplify-label">Simplify3x</span>
         </div>
@@ -595,6 +595,11 @@
                 </div>
               </div>
 
+              <p class="hint">
+                Pass Rate cells: red 0–50%, amber above 50% through 80%, green above 80%, with black text.
+                SIT also fills General Tanzania Defect Summary from Project B.
+              </p>
+
               <form id="reporterForm" class="form" autocomplete="off">
                 <div class="grid-2">
                   <div class="field">
@@ -623,13 +628,24 @@
                   </div>
 
                   <div class="field">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
-                      <span style="font-size: 0.86rem; font-weight: 600;">Template choice *</span>
-                      <label class="btn ghost" style="padding: 0.18rem 0.55rem; font-size: 0.76rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;">
-                        <input type="file" id="reporterTemplateFileInput" accept=".xlsx" style="display: none;" />
-                        <span>+ Upload template</span>
-                      </label>
+                    <div class="template-choice-head">
+                      <span>Template choice *</span>
+                      <div class="btn-row">
+                        <button type="button" class="btn secondary" id="reporterUploadTemplateBtn">
+                          + Upload template
+                        </button>
+                        <button type="button" class="btn ghost" id="reporterDeleteTemplateBtn" disabled>
+                          Delete
+                        </button>
+                      </div>
                     </div>
+                    <input
+                      id="reporterTemplateFileInput"
+                      name="templateFile"
+                      type="file"
+                      class="file-input-hidden"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    />
                     <select id="reporterTemplateChoice" name="templateChoice">
                       <option value="">Uses properties if blank</option>
                       <option value="1">1 · Template/FMS Status tracker.xlsx (2 EP blocks)</option>
@@ -664,6 +680,20 @@
                     />
                     <p class="hint">SIT fills General Uganda + Life Uganda from Project A, and General Tanzania from Project B. Lead Champion names stay as in the template.</p>
                   </div>
+                </div>
+
+                <div class="field hidden" id="reporterSprint3Wrap">
+                  <label for="reporterSprintFilter">Sprint filter (defects) *</label>
+                  <input
+                    id="reporterSprintFilter"
+                    name="defectSprint"
+                    type="text"
+                    placeholder="e.g. Build Wave 1 Sprint 2"
+                    autocomplete="off"
+                  />
+                  <p class="hint">
+                    Sprint 3 only. Enable the Sprint column, then keep defects whose Sprint matches this value (for example Sprint 2). Other templates ignore this field.
+                  </p>
                 </div>
 
                 <div class="plans" id="reporterPlansBlock">
@@ -994,6 +1024,6 @@
         </p>
       </footer>
     </div>
-    <script src="/app.js?v=1.4.0"></script>
+    <script src="/app.js?v=1.5.0"></script>
   </body>
 </html>

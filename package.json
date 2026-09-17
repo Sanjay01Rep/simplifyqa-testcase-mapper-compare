@@ -1,6 +1,6 @@
 {
   "name": "icea-lion-test-management-hub",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "ICEA LION Test Management Hub: Map client testcases to SimplifyQA Excel, compare workbooks, generate Execution Plans (EP), and ICEA LION reporting suite",
   "main": "server.js",
   "repository": {
