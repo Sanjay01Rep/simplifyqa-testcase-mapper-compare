@@ -13,6 +13,8 @@ API Files/
 # Local run config (committed templates: mapping.properties.example, config/application.properties.example)
 mapping.properties
 config/application.properties
+config/reporter-selections.json
+config/outlook-graph-token.json
 
 # Local / generated outputs
 Generated Excel file/

@@ -1,0 +1,12 @@
+{
+  "4": {
+    "enabled": true,
+    "label": "SIT (QA) Daily Status",
+    "search": "SIT (QA) Daily Status Report for Gen UG",
+    "subjectTemplate": "RE:SIT (QA) Daily Status Report for Gen UG, Life UG & Gen TZ (As of {asOfDate})",
+    "greeting": "Dear All,",
+    "introTemplate": "Please find below the SIT (QA) Daily Status Report as of {asOfDate} for Gen UG, Life UG and Gen TZ (changes vs {compareDate}).",
+    "closing": "Please let us know if any additional details are required.\n\nThank you for your continued support.",
+    "attachExcel": true
+  }
+}

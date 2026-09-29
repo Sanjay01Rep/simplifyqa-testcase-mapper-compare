@@ -1,10 +1,14 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const XLSX = require("xlsx");
 const { app, ROOT } = require("../server");
 const { mapFromBuffers, parseClientWorkbook, exactNameKey, buildOutputRows, workbookBuffer } = require("../lib/mapper");
 const { compareTestcases } = require("../lib/compare");
 const { classifyChange, nextVersion, isSkipPath } = require("../scripts/sync-app-version");
+const selections = require("../lib/reporter/selections");
+const emailChain = require("../lib/reporter/emailChain");
+const { cleanupOldGeneratedAndDownloads, MAX_AGE_DAYS } = require("../lib/cleanupOldFiles");
 
 const failures = [];
 let passed = 0;
@@ -81,6 +85,115 @@ async function main() {
     ok("enhancement from 1.1.0 is 1.2.0", nextVersion("1.1.0", "minor", "1.1.0") === "1.2.0");
     ok("does not double-bump uncommitted patch", nextVersion("1.1.1", "patch", "1.1.0") === "1.1.1");
     ok("upgrades pending patch to minor", nextVersion("1.1.1", "minor", "1.1.0") === "1.2.0");
+
+    const cleanupRoot = path.join(os.tmpdir(), `hub-cleanup-${Date.now()}`);
+    const oldMs = Date.now() - (MAX_AGE_DAYS + 1) * 24 * 60 * 60 * 1000;
+    const freshMs = Date.now();
+    try {
+      for (const dir of [
+        path.join(cleanupRoot, "downloads"),
+        path.join(cleanupRoot, "Generated Excel file", "logs"),
+        path.join(cleanupRoot, "output"),
+        path.join(cleanupRoot, "logs"),
+      ]) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const oldDl = path.join(cleanupRoot, "downloads", "old-download.xlsx");
+      const newDl = path.join(cleanupRoot, "downloads", "new-download.xlsx");
+      const oldGen = path.join(cleanupRoot, "Generated Excel file", "old-ep.xlsx");
+      const oldOut = path.join(cleanupRoot, "output", "old-output.xlsx");
+      const history = path.join(cleanupRoot, "logs", "run-history.json");
+      fs.writeFileSync(oldDl, "x");
+      fs.writeFileSync(newDl, "x");
+      fs.writeFileSync(oldGen, "x");
+      fs.writeFileSync(oldOut, "x");
+      fs.writeFileSync(history, "{}");
+      fs.utimesSync(oldDl, new Date(oldMs), new Date(oldMs));
+      fs.utimesSync(oldGen, new Date(oldMs), new Date(oldMs));
+      fs.utimesSync(oldOut, new Date(oldMs), new Date(oldMs));
+      fs.utimesSync(newDl, new Date(freshMs), new Date(freshMs));
+      const cleaned = cleanupOldGeneratedAndDownloads({
+        root: cleanupRoot,
+        now: Date.now(),
+      });
+      ok(
+        "cleanup removes generated/downloaded files older than 6 days",
+        MAX_AGE_DAYS === 6 &&
+          cleaned.removed >= 2 &&
+          !fs.existsSync(oldDl) &&
+          !fs.existsSync(oldGen) &&
+          fs.existsSync(newDl)
+      );
+      ok(
+        "cleanup skips output folder and keeps run-history even when older than 6 days",
+        fs.existsSync(oldOut) && fs.existsSync(history)
+      );
+    } finally {
+      fs.rmSync(cleanupRoot, { recursive: true, force: true });
+    }
+
+    const tmpSel = path.join(os.tmpdir(), `reporter-sel-e2e-${Date.now()}.json`);
+    const tmpProps = path.join(os.tmpdir(), `reporter-props-e2e-${Date.now()}.properties`);
+    try {
+      fs.writeFileSync(
+        tmpProps,
+        "TEMPLATE_CHOICE=7\nPROJECT_ID=2\nEXE_PLAN_ID_1=4\nEXE_PLAN_ID_2=5\n",
+        "utf8"
+      );
+      selections.saveSelection(
+        {
+          templateChoice: "4",
+          projectId: "5",
+          projectIdB: "6",
+          planIds: ["23", "24", "99"],
+          includeDefects: true,
+          compareEntitySummary: true,
+        },
+        tmpSel
+      );
+      const sitSaved = selections.getSelection("4", tmpSel);
+      ok(
+        "per-template selections keep a custom plan ID",
+        sitSaved && sitSaved.planIds[2] === "99"
+      );
+      const scheduled = selections.mergeFormWithSavedSelection({}, "4", tmpSel);
+      ok(
+        "empty scheduled form uses saved SIT plans",
+        scheduled && scheduled.projectId === "5" && scheduled.planIds[0] === "23"
+      );
+      const generateForm = selections.mergeFormWithSavedSelection(
+        { templateChoice: "4", projectId: "5", planIds: ["23", "24", "25"] },
+        "4",
+        tmpSel
+      );
+      ok(
+        "explicit generate form wins over saved plans",
+        generateForm.planIds[2] === "25"
+      );
+      selections.rememberSuccessfulRun(
+        {
+          templateChoice: "4",
+          projectId: "5",
+          projectIdB: "6",
+          planIds: ["23", "24", "99"],
+        },
+        tmpSel,
+        tmpProps
+      );
+      const propsText = fs.readFileSync(tmpProps, "utf8");
+      ok(
+        "successful generate syncs TEMPLATE_CHOICE into properties for the schedule",
+        /TEMPLATE_CHOICE=4/.test(propsText) && /EXE_PLAN_ID_3=99/.test(propsText)
+      );
+    } finally {
+      try {
+        fs.unlinkSync(tmpSel);
+      } catch {}
+      try {
+        fs.unlinkSync(tmpProps);
+      } catch {}
+    }
+
     ok(
       "config lists client files",
       Array.isArray(cfg.data.clientFiles) && cfg.data.clientFiles.length > 0
@@ -1218,6 +1331,79 @@ async function main() {
 
     const repDefaults = await jsonReq(base, "/api/reporter/form-defaults");
     ok("reporter form-defaults returns form configuration", repDefaults.data && repDefaults.data.ok === true && typeof repDefaults.data.form === "object");
+    ok(
+      "reporter form-defaults includes per-template savedByTemplate",
+      repDefaults.data && typeof repDefaults.data.savedByTemplate === "object"
+    );
+
+    const outlookStatus = await jsonReq(base, "/api/reporter/outlook/status");
+    ok(
+      "reporter outlook status returns connection flags",
+      outlookStatus.data &&
+        outlookStatus.data.ok === true &&
+        "configured" in outlookStatus.data &&
+        "connected" in outlookStatus.data
+    );
+    ok(
+      "SIT email chain formats as-of date from the compare sheet name",
+      emailChain.formatMailDate("28-09-2026 12-40-36 PM (2)") === "28-Sep-2026"
+    );
+    const sitMail = emailChain.buildStatusEmail({
+      chain: emailChain.getEmailChain("4"),
+      asOfDate: "28-Sep-2026",
+      compareDate: "25-Sep-2026",
+    });
+    ok(
+      "SIT status email uses Dear All and the compare date",
+      sitMail &&
+        sitMail.text &&
+        /Dear All/.test(sitMail.text) &&
+        /25-Sep-2026/.test(sitMail.text) &&
+        /Thank you for your continued support/i.test(sitMail.text)
+    );
+
+    const emailPack = await jsonReq(base, "/api/reporter/email-pack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        templateChoice: "4",
+        sheetName: "28-09-2026 10-21-18 PM",
+        compareSheet: "28-09-2026 12-40-36 PM (2)",
+        outputFile: "output/SIT Status tracker.xlsx",
+      }),
+    });
+    ok(
+      "reporter email-pack returns SIT subject and body without Graph",
+      emailPack.data &&
+        emailPack.data.ok === true &&
+        emailPack.data.pack &&
+        /Dear All/.test(emailPack.data.pack.text || "") &&
+        /28-Sep-2026/.test(emailPack.data.pack.text || "")
+    );
+    const sitOut = path.join(ROOT, "output", "SIT Status tracker.xlsx");
+    if (fs.existsSync(sitOut) && emailPack.data && emailPack.data.pack) {
+      ok(
+        "SIT email body includes Entity Summary, module-wise status, defects, and closing",
+        /Entity Summary/.test(emailPack.data.pack.text) &&
+          /Module-wise Daily Status/i.test(emailPack.data.pack.text) &&
+          /Defect Summary/i.test(emailPack.data.pack.text) &&
+          /Thank you for your continued support/i.test(emailPack.data.pack.text)
+      );
+      const sitHtml = emailPack.data.pack.html || "";
+      ok(
+        "SIT email HTML matches Outlook sample tables (td, grey Entity header, utf-8)",
+        /charset=utf-8/i.test(sitHtml) &&
+          /<td/i.test(sitHtml) &&
+          !/<th[\s>]/i.test(sitHtml) &&
+          /rgb\(174,\s*170,\s*170\)/.test(sitHtml) &&
+          /border-style: none/.test(sitHtml) &&
+          /The module-wise details are provided below/.test(sitHtml) &&
+          sitHtml.includes("819.24px") &&
+          sitHtml.includes("614.42pt") &&
+          sitHtml.includes("rgb(202, 237, 251)") &&
+          sitHtml.includes(">0</div>")
+      );
+    }
 
     const repProps = await jsonReq(base, "/api/reporter/properties");
     ok("reporter properties returns application.properties content", repProps.data && repProps.data.ok === true && typeof repProps.data.text === "string");
@@ -1295,8 +1481,14 @@ async function main() {
     const indexHtml = fs.readFileSync(path.join(ROOT, "public", "index.html"), "utf8");
     ok("UI contains ICEA LION Reporter tab", indexHtml.includes('id="tabReporter"'));
     ok("UI contains viewReporter container", indexHtml.includes('id="viewReporter"'));
-    ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"') && indexHtml.includes('id="reporterSitProjectBWrap"'));
+    ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"') && indexHtml.includes('id="reporterSitProjectBWrap"') && indexHtml.includes('id="reporterDraftOutlook"'));
     ok("UI contains Sprint 3 defect sprint filter field", indexHtml.includes('id="reporterSprint3Wrap"') && indexHtml.includes('id="reporterSprintFilter"'));
+    ok(
+      "UI contains SIT Entity Summary compare checkbox",
+      indexHtml.includes('id="reporterCompareEntitySummary"') &&
+        indexHtml.includes('id="reporterCompareEntitySheet"') &&
+        indexHtml.includes('id="reporterEntityCompareWrap"')
+    );
     ok(
       "reporter Upload template button is present and not disabled",
       indexHtml.includes('id="reporterUploadTemplateBtn"') &&
@@ -1326,6 +1518,7 @@ async function main() {
       extraDefectModulesForSection,
       buildDefectSectionSummary,
       discoverStatusSections,
+      writeSection,
     } = require("../lib/reporter/reporter");
     const catalog = ["Cash & Bank Management", "Integrations", "Accounts Payable"];
     ok(
@@ -1483,6 +1676,125 @@ async function main() {
       ok(
         "SIT Execution Rate label merge stays Passed through Blocked",
         sitMerges.includes("D10:F10")
+      );
+      const entitySummary = require("../lib/reporter/entitySummary");
+      ok(
+        "SIT template has Entity Summary headers to the right",
+        entitySummary.sheetHasEntitySummary(sitSheet)
+      );
+      ok("Entity Summary 50% Pass is Red", entitySummary.classifyStatus(0.5).label === "Red" && entitySummary.classifyStatus(0.5).argb === "FFFF0000");
+      ok("Entity Summary 23% Pass is Red", entitySummary.classifyStatus(0.23).label === "Red");
+      ok("Entity Summary 70% Pass is Amber", entitySummary.classifyStatus(0.7).label === "Amber" && entitySummary.classifyStatus(0.7).argb === "FFFFC000");
+      ok("Entity Summary 90% Pass is Green", entitySummary.classifyStatus(0.9).label === "Green" && entitySummary.classifyStatus(0.9).argb === "FF92D050");
+      entitySummary.writeEntityRows(
+        sitSheet,
+        [
+          {
+            entityLabel: "General Uganda",
+            total: 10,
+            passed: 8,
+            failed: 1,
+            blocked: 0,
+            inProgress: 0,
+            notExecuted: 1,
+            executionRate: 0.9,
+            passRate: 0.89,
+          },
+        ],
+        {
+          "General Uganda": {
+            total: 8,
+            passed: 5,
+            failed: 2,
+            blocked: 1,
+            inProgress: 0,
+            notExecuted: 0,
+            executionRate: 0.7,
+            passRate: 0.71,
+          },
+        }
+      );
+      const written = entitySummary.readEntitySummary(sitSheet);
+      ok(
+        "Entity Summary writes General Uganda totals to column M",
+        written && written["General Uganda"] && written["General Uganda"].total === 10 && written["General Uganda"].passed === 8
+      );
+      ok(
+        "Entity Summary Status for ~89% Pass is Green",
+        String(sitSheet.getRow(3).getCell(22).value) === "Green"
+      );
+      ok(
+        "Entity Summary delta shows passed increase",
+        String(sitSheet.getRow(4).getCell(15).value).includes("3")
+      );
+      ok(
+        "Entity Summary was-percent uses previous Pass %",
+        String(sitSheet.getRow(4).getCell(21).value) === "was 71%"
+      );
+      const ugTitle = String(sitSheet.getRow(2).getCell(2).value || "").trim();
+      const ugModules = [];
+      for (let r = 4; r <= 13; r++) {
+        const name = String(sitSheet.getRow(r).getCell(3).value || "").trim();
+        if (name) ugModules.push(name);
+      }
+      const zeroRow = () => ({
+        passed: 0,
+        failed: 0,
+        blocked: 0,
+        inProgress: 0,
+        notExecuted: 0,
+        total: 0,
+        passRate: 0,
+      });
+      writeSection(sitSheet, ugTitle, {
+        rows: ugModules.map((name) => ({ name, ...zeroRow() })),
+        totalSummary: zeroRow(),
+        executionRate: 0,
+        overallPassRate: 0,
+      });
+      entitySummary.writeEntityRows(sitSheet, [
+        {
+          entityLabel: "General Uganda",
+          total: 1,
+          passed: 1,
+          failed: 0,
+          blocked: 0,
+          inProgress: 0,
+          notExecuted: 0,
+          executionRate: 1,
+          passRate: 1,
+        },
+      ]);
+      const afterFillMerges = ((sitSheet.model && sitSheet.model.merges) || []).map((m) =>
+        String(m).toUpperCase()
+      );
+      ok(
+        "SIT Daily Status title merge does not cover Entity Summary",
+        afterFillMerges.includes("B2:J2") && !afterFillMerges.includes("B2:V2")
+      );
+      ok(
+        "Entity Summary header is still Entity after Daily Status fill",
+        String(sitSheet.getRow(2).getCell(13).value) === "Entity"
+      );
+      const entityHdrFill = sitSheet.getRow(2).getCell(13).fill;
+      ok(
+        "Entity Summary header uses grey fill",
+        entityHdrFill &&
+          entityHdrFill.fgColor &&
+          entityHdrFill.fgColor.theme === 2
+      );
+      ok(
+        "Entity Summary In Progress / Not Executed / Execution % columns are expanded",
+        sitSheet.getColumn(18).width >= 13 &&
+          sitSheet.getColumn(19).width >= 14 &&
+          sitSheet.getColumn(20).width >= 13
+      );
+      sitSheet.getRow(2).getCell(13).value = "General Uganda | SIT (QA) -Module-wise Daily Status";
+      ok(
+        "Entity Summary still reads previous totals if the header row was overlapped",
+        entitySummary.readEntitySummary(sitSheet) &&
+          entitySummary.readEntitySummary(sitSheet)["General Uganda"] &&
+          entitySummary.readEntitySummary(sitSheet)["General Uganda"].total === 1
       );
     }
     const workstreamFill = require("../lib/reporter/workstreamFill");

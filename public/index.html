@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=1.5.0" />
+    <link rel="stylesheet" href="/styles.css?v=1.6.0" />
   </head>
   <body>
     <header class="topbar">
@@ -34,7 +34,7 @@
             <span class="server-bot-icon" aria-hidden="true">🤖</span>
             <span class="server-bot-text" id="serverBotText">Checking…</span>
           </button>
-          <span class="version-badge" id="appVersion" title="App version">v1.5.0</span>
+          <span class="version-badge" id="appVersion" title="App version">v1.6.0</span>
           <img id="logoRight" class="logo simplify" src="/logo/Simplify-icon.png" alt="" />
           <span class="simplify-label">Simplify3x</span>
         </div>
@@ -654,6 +654,7 @@
                       <option value="4">4 · Template/SIT Template.xlsx (3 SIT blocks, Uganda + Tanzania)</option>
                     </select>
                     <p class="hint template-hint" id="reporterTemplateHint"></p>
+                    <p class="hint">After a successful generate, this template’s projects, plans, and options are remembered for the next run and the schedule.</p>
                     <p class="status" id="reporterTemplateUploadStatus" aria-live="polite" style="margin: 0.25rem 0 0; font-size: 0.8rem;"></p>
                   </div>
                 </div>
@@ -724,6 +725,38 @@
                   </label>
                 </div>
 
+                <div class="hidden" id="reporterEntityCompareWrap">
+                  <label class="check-row">
+                    <input type="checkbox" id="reporterCompareEntitySummary" checked />
+                    <span>Compare Entity Summary with previous sheet</span>
+                  </label>
+                  <div class="field" id="reporterCompareEntityFields">
+                    <label for="reporterCompareEntitySheet">Compare with sheet</label>
+                    <select id="reporterCompareEntitySheet">
+                      <option value="">Previous dated sheet (auto)</option>
+                    </select>
+                    <p class="hint">
+                      SIT only. Leave on auto to compare this run with the previous dated sheet.
+                      Pick a sheet if you want a different run.
+                    </p>
+                  </div>
+                  <label class="check-row">
+                    <input type="checkbox" id="reporterDraftOutlook" checked />
+                    <span>Show copy-paste email after generate</span>
+                  </label>
+                  <p class="hint" id="reporterOutlookHint">
+                    SIT only. After generate, the Hub shows Subject and Body with a Copy button next to each. Reply all on the existing Daily Status thread, paste, attach the Excel. Leave To and CC unchanged.
+                  </p>
+                  <div class="btn-row" style="margin-top: 0.35rem;">
+                    <button type="button" class="btn ghost" id="reporterOutlookConnectBtn">
+                      Connect Outlook
+                    </button>
+                    <button type="button" class="btn ghost hidden" id="reporterOutlookDisconnectBtn">
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+
                 <ol class="progress-steps hidden" id="reporterProgressSteps">
                   <li data-step="prepare">Prepare</li>
                   <li data-step="download_ep">Download plans</li>
@@ -745,6 +778,25 @@
                 <h3>Report Result</h3>
                 <p id="reporterResultMessage"></p>
                 <div class="result-links" id="reporterResultLinks"></div>
+                <div class="hidden" id="reporterEmailPack" style="margin-top: 0.85rem;">
+                  <h4>Copy-paste email</h4>
+                  <p class="hint" id="reporterEmailPackHint">
+                    Reply all on the existing SIT Daily Status thread. Click Copy next to Subject or Body, paste in Outlook, then attach the Excel. Do not change To or CC.
+                  </p>
+                  <div class="field-head">
+                    <label for="reporterEmailSubject">Subject</label>
+                    <button type="button" class="btn ghost" id="reporterCopyEmailSubjectBtn">Copy</button>
+                  </div>
+                  <input id="reporterEmailSubject" type="text" readonly />
+                  <div class="field-head" style="margin-top: 0.75rem;">
+                    <label for="reporterEmailBody">Body</label>
+                    <button type="button" class="btn ghost" id="reporterCopyEmailBodyBtn">Copy</button>
+                  </div>
+                  <textarea id="reporterEmailBody" rows="6" readonly></textarea>
+                  <div class="btn-row" style="margin-top: 0.5rem;">
+                    <a class="btn ghost" id="reporterOpenOutlookWebBtn" href="https://outlook.office.com/mail/" target="_blank" rel="noopener">Open Outlook on the web</a>
+                  </div>
+                </div>
                 <details id="reporterAlertBanner" class="run-notes hidden" role="status"></details>
                 <details id="reporterLogDetails">
                   <summary>Run log</summary>
@@ -1024,6 +1076,6 @@
         </p>
       </footer>
     </div>
-    <script src="/app.js?v=1.5.0"></script>
+    <script src="/app.js?v=1.6.0"></script>
   </body>
 </html>

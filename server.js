@@ -40,6 +40,7 @@ const {
 } = require("./lib/loadEnv");
 const { createReporterRouter } = require("./lib/reporter/routes");
 const { createPptReportRouter } = require("./lib/pptReport/routes");
+const { cleanupOldGeneratedAndDownloads, MAX_AGE_DAYS } = require("./lib/cleanupOldFiles");
 
 const ROOT = __dirname;
 const explicitPort = process.env.PORT;
@@ -1181,6 +1182,15 @@ ensureDir(KENYA_DIR);
 ensureDir(KENYA_ORIGINAL_DIR);
 ensureDir(OUT_DIR);
 ensureDir(LOG_DIR);
+try {
+  cleanupOldGeneratedAndDownloads({
+    log: (msg) => console.log(msg),
+  });
+} catch (err) {
+  console.warn(
+    `Old-file cleanup (>${MAX_AGE_DAYS} days) skipped: ${err && err.message ? err.message : err}`
+  );
+}
 
 function listedApiRoutes() {
   try {

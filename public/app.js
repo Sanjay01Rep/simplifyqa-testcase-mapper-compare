@@ -170,12 +170,27 @@ const reporterPlanFieldsEl = document.getElementById("reporterPlanFields");
 const reporterAddPlanBtn = document.getElementById("reporterAddPlanBtn");
 const reporterIncludeDefectsEl = document.getElementById("reporterIncludeDefects");
 const reporterIncludePdfEl = document.getElementById("reporterIncludePdf");
+const reporterEntityCompareWrap = document.getElementById("reporterEntityCompareWrap");
+const reporterCompareEntitySummaryEl = document.getElementById("reporterCompareEntitySummary");
+const reporterCompareEntityFieldsEl = document.getElementById("reporterCompareEntityFields");
+const reporterCompareEntitySheetEl = document.getElementById("reporterCompareEntitySheet");
+const reporterDraftOutlookEl = document.getElementById("reporterDraftOutlook");
+const reporterOutlookHintEl = document.getElementById("reporterOutlookHint");
+const reporterOutlookConnectBtn = document.getElementById("reporterOutlookConnectBtn");
+const reporterOutlookDisconnectBtn = document.getElementById("reporterOutlookDisconnectBtn");
 const reporterProgressStepsEl = document.getElementById("reporterProgressSteps");
 const reporterRunBtn = document.getElementById("reporterRunBtn");
 const reporterRunStatusEl = document.getElementById("reporterRunStatus");
 const reporterResultBoxEl = document.getElementById("reporterResultBox");
 const reporterResultMessageEl = document.getElementById("reporterResultMessage");
 const reporterResultLinksEl = document.getElementById("reporterResultLinks");
+const reporterEmailPackEl = document.getElementById("reporterEmailPack");
+const reporterEmailPackHintEl = document.getElementById("reporterEmailPackHint");
+const reporterEmailSubjectEl = document.getElementById("reporterEmailSubject");
+const reporterEmailBodyEl = document.getElementById("reporterEmailBody");
+const reporterCopyEmailSubjectBtn = document.getElementById("reporterCopyEmailSubjectBtn");
+const reporterCopyEmailBodyBtn = document.getElementById("reporterCopyEmailBodyBtn");
+const reporterOpenOutlookWebBtn = document.getElementById("reporterOpenOutlookWebBtn");
 const reporterAlertBannerEl = document.getElementById("reporterAlertBanner");
 const reporterLogDetailsEl = document.getElementById("reporterLogDetails");
 const reporterLogOutputEl = document.getElementById("reporterLogOutput");
@@ -1207,6 +1222,7 @@ function setView(which) {
     loadReporterFormDefaults().catch(() => {});
     loadReporterSchedule().catch(() => {});
     loadReporterSheets().catch(() => {});
+    loadReporterOutlookStatus().catch(() => {});
   }
   if (isPpt) {
     loadPptFiles().catch(() => {});
@@ -2682,6 +2698,7 @@ loadAuthStatus().catch(() => {});
 // =========================================================================
 
 let reporterTemplatesMeta = [];
+let reporterSavedByTemplate = {};
 let reporterProgressTimer = null;
 let reporterCurrentPreviewFile = null;
 
@@ -2739,7 +2756,7 @@ function updateReporterTemplateHint() {
   const parts = [];
   if (meta.description) parts.push(meta.description);
   if (meta.sitDualProject) {
-    parts.push("Select Uganda as Project A and Tanzania as Project B. Three execution-plan dropdowns: Gen UG, Life UG, Gen TZ.");
+    parts.push("Select Uganda as Project A and Tanzania as Project B. Three execution-plan dropdowns: Gen UG, Life UG, Gen TZ. Entity Summary fills to the right of Daily Status.");
   } else if (meta.sprint3Defects) {
     parts.push("Sprint 3: enter the Sprint for defects (example: Build Wave 1 Sprint 2). Sprint and Entity columns are enabled before the defect export.");
   } else if (meta.kind === "workstream") {
@@ -2983,6 +3000,54 @@ function updateReporterSitUi() {
     if (!b) renderReporterProjectBOptions("6", reporterProjectsList);
   }
   updateReporterSprint3Ui();
+  updateReporterEntityCompareUi();
+}
+
+function updateReporterEntityCompareUi() {
+  const sit = isSitReporterTemplate();
+  if (reporterEntityCompareWrap) reporterEntityCompareWrap.classList.toggle("hidden", !sit);
+  const compareOn = Boolean(
+    sit && (!reporterCompareEntitySummaryEl || reporterCompareEntitySummaryEl.checked)
+  );
+  if (reporterCompareEntityFieldsEl) {
+    reporterCompareEntityFieldsEl.classList.toggle("hidden", !compareOn);
+  }
+  if (sit && compareOn) loadReporterEntityCompareSheets().catch(() => {});
+}
+
+async function loadReporterEntityCompareSheets() {
+  if (!reporterCompareEntitySheetEl) return;
+  const choice =
+    (reporterTemplateChoiceEl && reporterTemplateChoiceEl.value.trim()) || "4";
+  const current = reporterCompareEntitySheetEl.value;
+  try {
+    const res = await fetch(`/api/reporter/sheets?choice=${encodeURIComponent(choice)}`);
+    const data = await res.json();
+    const sheets = ((data && data.sheets) || [])
+      .map((s) => (typeof s === "object" && s.name ? s.name : String(s)))
+      .filter(
+        (name) =>
+          name &&
+          !/^compare /i.test(name) &&
+          String(name).trim().toLowerCase() !== "entity summary"
+      );
+    reporterCompareEntitySheetEl.innerHTML = "";
+    const auto = document.createElement("option");
+    auto.value = "";
+    auto.textContent = sheets.length
+      ? "Previous dated sheet (auto)"
+      : "Previous dated sheet (auto) — no SIT workbook yet";
+    reporterCompareEntitySheetEl.appendChild(auto);
+    sheets.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      reporterCompareEntitySheetEl.appendChild(opt);
+    });
+    if (current && sheets.includes(current)) reporterCompareEntitySheetEl.value = current;
+  } catch {
+    /* keep auto */
+  }
 }
 
 function updateReporterSprint3Ui() {
@@ -3322,19 +3387,41 @@ function readReporterForm() {
     includeDefects: reporterIncludeDefectsEl ? reporterIncludeDefectsEl.checked : true,
     includePdf: reporterIncludePdfEl ? reporterIncludePdfEl.checked : false,
     defectSprint: reporterSprintFilterEl ? reporterSprintFilterEl.value.trim() : "",
+    compareEntitySummary: reporterCompareEntitySummaryEl
+      ? reporterCompareEntitySummaryEl.checked
+      : true,
+    compareSheet: reporterCompareEntitySheetEl ? reporterCompareEntitySheetEl.value.trim() : "",
+    draftOutlookEmail: reporterDraftOutlookEl ? reporterDraftOutlookEl.checked : true,
   };
 }
 
 function applyReporterForm(form) {
   const pId = form.projectId ? String(form.projectId).trim() : "";
-  renderReporterProjectOptions(pId, form.projects || []);
+  renderReporterProjectOptions(pId, form.projects && form.projects.length ? form.projects : reporterProjectsList);
   const pIdB = form.projectIdB ? String(form.projectIdB).trim() : "";
-  renderReporterProjectBOptions(pIdB, form.projects || []);
-  fillReporterTemplateOptions(form.templates || [], form.templateChoice || "");
+  renderReporterProjectBOptions(pIdB, form.projects && form.projects.length ? form.projects : reporterProjectsList);
+  fillReporterTemplateOptions(form.templates || reporterTemplatesMeta, form.templateChoice || "");
+  if (reporterIncludeDefectsEl && "includeDefects" in form) {
+    reporterIncludeDefectsEl.checked = form.includeDefects !== false;
+  }
+  if (reporterIncludePdfEl && "includePdf" in form) {
+    reporterIncludePdfEl.checked = form.includePdf === true;
+  }
+  if (reporterCompareEntitySummaryEl && "compareEntitySummary" in form) {
+    reporterCompareEntitySummaryEl.checked = form.compareEntitySummary !== false;
+  }
   updateReporterSitUi();
-  if (reporterSprintFilterEl) {
+  if (reporterSprintFilterEl && "defectSprint" in form) {
     reporterSprintFilterEl.value = form.defectSprint || "";
   }
+  if (reporterCompareEntitySheetEl && "compareSheet" in form) {
+    reporterCompareEntitySheetEl.value = form.compareSheet || "";
+  }
+  if (reporterDraftOutlookEl && "draftOutlookEmail" in form) {
+    reporterDraftOutlookEl.checked = form.draftOutlookEmail !== false;
+  }
+  updateReporterSprint3Ui();
+  updateReporterEntityCompareUi();
   const sit = isSitReporterTemplate();
   if (Array.isArray(form.plans) && form.plans.length && !sit) {
     reporterPlansList = form.plans;
@@ -3343,7 +3430,7 @@ function applyReporterForm(form) {
     reporterPlansListB = [];
   }
   const n = reporterExpectedPlanCount();
-  const planIds = sit ? [] : form.planIds || [];
+  const planIds = form.planIds || [];
   setReporterPlanFields(planIdsForTemplateCount(planIds, n));
   loadReporterPlans(pId).catch(() => {});
 }
@@ -3502,6 +3589,7 @@ async function loadReporterFormDefaults() {
     const res = await fetch("/api/reporter/form-defaults");
     const data = await res.json();
     if (!data.ok) return;
+    reporterSavedByTemplate = data.savedByTemplate || (data.form && data.form.savedByTemplate) || {};
     applyReporterForm(data.form || {});
   } catch {
     /* ignore */
@@ -3681,7 +3769,196 @@ function pathJoin(a, b) {
   return `${a}/${b}`.replace(/\\/g, "/");
 }
 
+let lastReporterRunForOutlook = null;
+let reporterOutlookPollTimer = null;
+
+function setReporterOutlookHint(text) {
+  if (reporterOutlookHintEl) reporterOutlookHintEl.textContent = text;
+}
+
+async function loadReporterOutlookStatus() {
+  try {
+    const res = await fetch("/api/reporter/outlook/status");
+    const data = await res.json();
+    if (reporterOutlookDisconnectBtn) {
+      reporterOutlookDisconnectBtn.classList.toggle("hidden", !(data.ok && data.connected));
+    }
+    if (!data.ok) return data;
+    if (data.connected) {
+      setReporterOutlookHint(
+        `Outlook connected${data.account ? ` as ${data.account}` : ""}. Copy-paste email still works without sending. Auto-draft needs Mail.ReadWrite if an admin later grants it.`
+      );
+    } else {
+      setReporterOutlookHint(
+        "SIT only. After generate, Subject and Body appear with a Copy button next to each. Reply all on the existing Daily Status thread, paste, attach the Excel. Leave To and CC unchanged. Connect Outlook stays available for later."
+      );
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function connectReporterOutlook() {
+  setReporterOutlookHint("Starting Outlook sign-in…");
+  const res = await fetch("/api/reporter/outlook/connect", { method: "POST" });
+  const data = await res.json();
+  if (!data.ok) {
+    setReporterOutlookHint(data.message || "Could not start Outlook sign-in.");
+    throw new Error(data.message || "Connect failed.");
+  }
+  setReporterOutlookHint(
+    `In the Microsoft page, enter code ${data.userCode}. Waiting for sign-in…`
+  );
+  if (data.verificationUrl) window.open(data.verificationUrl, "_blank", "noopener");
+  if (reporterOutlookPollTimer) clearInterval(reporterOutlookPollTimer);
+  await new Promise((resolve, reject) => {
+    const started = Date.now();
+    reporterOutlookPollTimer = setInterval(async () => {
+      try {
+        if (Date.now() - started > 15 * 60 * 1000) {
+          clearInterval(reporterOutlookPollTimer);
+          reporterOutlookPollTimer = null;
+          reject(new Error("Outlook sign-in timed out."));
+          return;
+        }
+        const pollRes = await fetch("/api/reporter/outlook/connect/poll", { method: "POST" });
+        const poll = await pollRes.json();
+        if (!poll.ok) {
+          clearInterval(reporterOutlookPollTimer);
+          reporterOutlookPollTimer = null;
+          reject(new Error(poll.message || "Outlook sign-in failed."));
+          return;
+        }
+        if (poll.connected) {
+          clearInterval(reporterOutlookPollTimer);
+          reporterOutlookPollTimer = null;
+          loadReporterOutlookStatus().catch(() => {});
+          resolve(poll);
+        }
+      } catch (err) {
+        clearInterval(reporterOutlookPollTimer);
+        reporterOutlookPollTimer = null;
+        reject(err);
+      }
+    }, 4000);
+  });
+}
+
+function htmlBodyFragment(html) {
+  const raw = String(html || "");
+  const m = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  return m ? m[1] : raw;
+}
+
+function copyHtmlViaContentEditable(html) {
+  const holder = document.createElement("div");
+  holder.contentEditable = "true";
+  holder.setAttribute("contenteditable", "true");
+  holder.style.cssText = "position:fixed;left:-10000px;top:0;width:920px;height:auto;opacity:0;";
+  holder.innerHTML = htmlBodyFragment(html);
+  document.body.appendChild(holder);
+  const range = document.createRange();
+  range.selectNodeContents(holder);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  const ok = document.execCommand("copy");
+  sel.removeAllRanges();
+  holder.remove();
+  if (!ok) throw new Error("copy failed");
+}
+
+async function copyTextToClipboard(text, html) {
+  const value = String(text || "");
+  if (html) {
+    try {
+      copyHtmlViaContentEditable(html);
+      return;
+    } catch {
+      /* fall through */
+    }
+    if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        const fragment = htmlBodyFragment(html);
+        const wrapped = `<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head><body dir="ltr">${fragment}</body></html>`;
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([wrapped], { type: "text/html;charset=utf-8" }),
+            "text/plain": new Blob([value], { type: "text/plain;charset=utf-8" }),
+          }),
+        ]);
+        return;
+      } catch {
+        /* fall through to plain text */
+      }
+    }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const area = document.createElement("textarea");
+  area.value = value;
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand("copy");
+  area.remove();
+}
+
+let lastReporterEmailPack = null;
+
+function fillReporterEmailPack(pack) {
+  lastReporterEmailPack = pack || null;
+  if (!pack || !reporterEmailPackEl) return;
+  if (reporterEmailSubjectEl) reporterEmailSubjectEl.value = pack.subject || "";
+  if (reporterEmailBodyEl) reporterEmailBodyEl.value = pack.text || "";
+  if (reporterOpenOutlookWebBtn && pack.outlookWebUrl) {
+    reporterOpenOutlookWebBtn.href = pack.outlookWebUrl;
+  }
+  if (reporterEmailPackHintEl) {
+    reporterEmailPackHintEl.textContent =
+      "Reply all on the existing SIT Daily Status thread. Copy Body pastes formatted tables (Entity Summary, module-wise status, defects) into Outlook. Then attach the Excel. Do not change To or CC.";
+  }
+  reporterEmailPackEl.classList.remove("hidden");
+}
+
+async function prepareReporterEmailPack(runData, form) {
+  const templateChoice =
+    (form && form.templateChoice) ||
+    (runData && runData.runtime && runData.runtime.templateChoice) ||
+    "";
+  if (String(templateChoice) !== "4" && !isSitReporterTemplate()) return;
+  const res = await fetch("/api/reporter/email-pack", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      templateChoice: templateChoice || "4",
+      outputFile: runData && runData.outputFile,
+      sheetName: runData && runData.sheetName,
+      compareSheet: (form && form.compareSheet) || (runData && runData.comparedSheetName) || "",
+    }),
+  });
+  const data = await res.json();
+  if (!data.ok || !data.pack) {
+    setStatus(reporterRunStatusEl, data.message || "Could not prepare the email pack.", "bad");
+    return;
+  }
+  fillReporterEmailPack(data.pack);
+  setStatus(
+    reporterRunStatusEl,
+    "Copy-paste email is ready below. Copy Subject or Body, Reply all in Outlook, paste, attach the Excel.",
+    "ok"
+  );
+}
+
+async function draftReporterOutlookEmail(runData, form) {
+  await prepareReporterEmailPack(runData, form);
+}
+
 function showReporterResult(data) {
+  lastReporterRunForOutlook = data;
+  if (reporterEmailPackEl) reporterEmailPackEl.classList.add("hidden");
   if (!reporterResultBoxEl || !reporterResultMessageEl || !reporterResultLinksEl) return;
   reporterResultBoxEl.classList.remove("hidden");
   reporterResultMessageEl.textContent = data.message || "";
@@ -3706,6 +3983,22 @@ function showReporterResult(data) {
       openReporterGeneratedExcel(data);
     });
     reporterResultLinksEl.appendChild(openExcel);
+  }
+
+  if (
+    isSitReporterTemplate() ||
+    (data.runtime && String(data.runtime.templateChoice) === "4")
+  ) {
+    const outlookA = document.createElement("a");
+    outlookA.href = "#";
+    outlookA.textContent = "Show copy-paste email";
+    outlookA.addEventListener("click", (e) => {
+      e.preventDefault();
+      draftReporterOutlookEmail(data, lastReporterForm || readReporterForm()).catch((err) => {
+        setStatus(reporterRunStatusEl, err.message || String(err), "bad");
+      });
+    });
+    reporterResultLinksEl.appendChild(outlookA);
   }
 
   if (data.download && data.download.pdf) {
@@ -3745,8 +4038,12 @@ function resetReporterForm() {
   updateReporterSitUi();
   if (reporterIncludeDefectsEl) reporterIncludeDefectsEl.checked = true;
   if (reporterIncludePdfEl) reporterIncludePdfEl.checked = false;
+  if (reporterCompareEntitySummaryEl) reporterCompareEntitySummaryEl.checked = true;
+  if (reporterCompareEntitySheetEl) reporterCompareEntitySheetEl.value = "";
+  updateReporterEntityCompareUi();
   setReporterPlanFields([""]);
   if (reporterResultBoxEl) reporterResultBoxEl.classList.add("hidden");
+  if (reporterEmailPackEl) reporterEmailPackEl.classList.add("hidden");
   if (reporterAlertBannerEl) reporterAlertBannerEl.classList.add("hidden");
   if (reporterProgressStepsEl) reporterProgressStepsEl.classList.add("hidden");
   if (validateBannerEl) validateBannerEl.classList.add("hidden");
@@ -3957,12 +4254,25 @@ if (reporterTemplateFileInput) {
 
 if (reporterTemplateChoiceEl) {
   reporterTemplateChoiceEl.addEventListener("change", () => {
+    const choice = reporterTemplateChoiceEl.value.trim();
+    const saved = choice ? reporterSavedByTemplate[choice] : null;
+    if (saved) {
+      applyReporterForm({
+        ...saved,
+        templates: reporterTemplatesMeta,
+        templateChoice: choice,
+        projects: reporterProjectsList,
+      });
+      return;
+    }
     updateReporterTemplateHint();
     updateReporterDeleteBtn();
     updateReporterSitUi();
     syncReporterPlanRowsToTemplate();
     validateReporterPlanCount();
     loadReporterPlans(readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl)).catch(() => {});
+    updateReporterSprint3Ui();
+    updateReporterEntityCompareUi();
   });
 }
 
@@ -4056,6 +4366,49 @@ if (reporterCompareBtn) {
 if (reporterIncludeDefectsEl) {
   reporterIncludeDefectsEl.addEventListener("change", () => updateReporterSprint3Ui());
 }
+if (reporterCompareEntitySummaryEl) {
+  reporterCompareEntitySummaryEl.addEventListener("change", () => updateReporterEntityCompareUi());
+}
+if (reporterCopyEmailSubjectBtn) {
+  reporterCopyEmailSubjectBtn.addEventListener("click", async () => {
+    try {
+      await copyTextToClipboard(reporterEmailSubjectEl ? reporterEmailSubjectEl.value : "");
+      setStatus(reporterRunStatusEl, "Subject copied.", "ok");
+    } catch (err) {
+      setStatus(reporterRunStatusEl, err.message || String(err), "bad");
+    }
+  });
+}
+if (reporterCopyEmailBodyBtn) {
+  reporterCopyEmailBodyBtn.addEventListener("click", async () => {
+    try {
+      await copyTextToClipboard(
+        reporterEmailBodyEl ? reporterEmailBodyEl.value : "",
+        lastReporterEmailPack && lastReporterEmailPack.html
+      );
+      setStatus(reporterRunStatusEl, "Body copied. Paste into Outlook Reply all for formatted tables.", "ok");
+    } catch (err) {
+      setStatus(reporterRunStatusEl, err.message || String(err), "bad");
+    }
+  });
+}
+if (reporterOutlookConnectBtn) {
+  reporterOutlookConnectBtn.addEventListener("click", () => {
+    connectReporterOutlook().catch((err) => {
+      setReporterOutlookHint(err.message || String(err));
+    });
+  });
+}
+if (reporterOutlookDisconnectBtn) {
+  reporterOutlookDisconnectBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/api/reporter/outlook/disconnect", { method: "POST" });
+      await loadReporterOutlookStatus();
+    } catch (err) {
+      setReporterOutlookHint(err.message || String(err));
+    }
+  });
+}
 
 const reporterFormEl = document.getElementById("reporterForm");
 if (reporterFormEl) {
@@ -4117,8 +4470,26 @@ async function runReporterGenerate(form) {
     setReporterProgress("done");
     setStatus(reporterRunStatusEl, data.message || "Report generated successfully.", "ok");
     showReporterResult(data);
+    const choice = String(form.templateChoice || "").trim();
+    if (choice) {
+      reporterSavedByTemplate[choice] = {
+        projectId: form.projectId,
+        projectIdB: form.projectIdB,
+        templateChoice: choice,
+        planIds: form.planIds || [],
+        includeDefects: form.includeDefects !== false,
+        includePdf: form.includePdf === true,
+        defectSprint: form.defectSprint || "",
+        compareEntitySummary: form.compareEntitySummary !== false,
+        compareSheet: form.compareSheet || "",
+        draftOutlookEmail: form.draftOutlookEmail !== false,
+      };
+    }
     loadHistory().catch(() => {});
     loadReporterSheets().catch(() => {});
+    if (form.draftOutlookEmail !== false && isSitReporterTemplate()) {
+      prepareReporterEmailPack(data, form).catch(() => {});
+    }
   } catch (err) {
     stopReporterProgressPolling();
     setStatus(reporterRunStatusEl, err.message || String(err), "bad");
