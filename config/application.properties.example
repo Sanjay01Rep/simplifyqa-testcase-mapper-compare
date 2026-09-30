@@ -16,6 +16,9 @@ OUTPUT_FILE_3=output/E2E Report.xlsx
 TEMPLATE_4=Template/SIT Template.xlsx
 OUTPUT_FILE_4=output/SIT Status tracker.xlsx
 
+TEMPLATE_5=Template/UAT 1 Status report.xlsx
+OUTPUT_FILE_5=output/UAT 1 Status report.xlsx
+
 # Which template to use for this run (also selects matching OUTPUT_FILE_n)
 TEMPLATE_CHOICE=1
 

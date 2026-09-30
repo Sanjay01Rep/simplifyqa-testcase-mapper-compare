@@ -646,6 +646,10 @@ textarea:focus {
   color: var(--bad);
 }
 
+.hint.bad {
+  color: var(--bad);
+}
+
 .progress-steps {
   list-style: none;
   margin: 0.25rem 0 0;

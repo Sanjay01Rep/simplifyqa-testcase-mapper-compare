@@ -167,9 +167,13 @@ const reporterTemplateUploadStatus = document.getElementById("reporterTemplateUp
 const reporterTemplateHintEl = document.getElementById("reporterTemplateHint");
 const reporterPlansBlockEl = document.getElementById("reporterPlansBlock");
 const reporterPlanFieldsEl = document.getElementById("reporterPlanFields");
+const reporterPlansHintEl = document.getElementById("reporterPlansHint");
+const REPORTER_PLANS_HINT_DEFAULT =
+  "Plans are loaded from SimplifyQA for the selected project (ID — name). Template 1 shows 2 dropdowns, template 2 shows 4, template 3 shows 2. SIT (template 4) shows 3: General Uganda and Life Uganda from Project A, General Tanzania from Project B. Use Other / Custom Plan ID if a plan is missing.";
 const reporterAddPlanBtn = document.getElementById("reporterAddPlanBtn");
 const reporterIncludeDefectsEl = document.getElementById("reporterIncludeDefects");
 const reporterIncludePdfEl = document.getElementById("reporterIncludePdf");
+const reporterExcludeBlockedFromRatesEl = document.getElementById("reporterExcludeBlockedFromRates");
 const reporterEntityCompareWrap = document.getElementById("reporterEntityCompareWrap");
 const reporterCompareEntitySummaryEl = document.getElementById("reporterCompareEntitySummary");
 const reporterCompareEntityFieldsEl = document.getElementById("reporterCompareEntityFields");
@@ -2728,8 +2732,10 @@ function fillReporterTemplateOptions(templates, selected) {
 }
 
 function isCustomReporterTemplate(choice) {
+  const meta = findReporterTemplateMeta(choice);
+  if (meta && "deletable" in meta) return Boolean(meta.deletable);
   const n = Number(choice);
-  return Number.isInteger(n) && n >= 5 && n <= 50;
+  return Number.isInteger(n) && n >= 6 && n <= 50;
 }
 
 function updateReporterDeleteBtn() {
@@ -2803,10 +2809,10 @@ function createReporterPlanRow(value, index) {
   const pick = document.createElement("div");
   pick.className = "plan-pick";
 
-  if (isSitReporterTemplate() && SIT_PLAN_LABELS[index - 1]) {
+  if (isSitReporterTemplate() && dualProjectPlanLabels()[index - 1]) {
     const lab = document.createElement("span");
     lab.className = "plan-row-label";
-    lab.textContent = SIT_PLAN_LABELS[index - 1];
+    lab.textContent = dualProjectPlanLabels()[index - 1];
     pick.appendChild(lab);
   }
 
@@ -2985,6 +2991,20 @@ const SIT_PLAN_LABELS = [
   "3. General Tanzania | SIT (Tanzania project)",
 ];
 
+const UAT_PLAN_LABELS = [
+  "1. General Uganda | UAT (Uganda project)",
+  "2. Life Uganda | UAT (Uganda project)",
+  "3. General Tanzania | UAT (Tanzania project)",
+];
+
+function dualProjectPlanLabels() {
+  const meta = findReporterTemplateMeta(
+    (reporterTemplateChoiceEl && reporterTemplateChoiceEl.value.trim()) || ""
+  );
+  const file = meta && meta.template ? String(meta.template) : "";
+  return /uat/i.test(file) ? UAT_PLAN_LABELS : SIT_PLAN_LABELS;
+}
+
 function updateReporterSitUi() {
   const sit = isSitReporterTemplate();
   if (reporterSitProjectBWrap) reporterSitProjectBWrap.classList.toggle("hidden", !sit);
@@ -3036,7 +3056,7 @@ async function loadReporterEntityCompareSheets() {
     auto.value = "";
     auto.textContent = sheets.length
       ? "Previous dated sheet (auto)"
-      : "Previous dated sheet (auto) — no SIT workbook yet";
+      : "Previous dated sheet (auto) — no workbook yet";
     reporterCompareEntitySheetEl.appendChild(auto);
     sheets.forEach((name) => {
       const opt = document.createElement("option");
@@ -3118,22 +3138,36 @@ let reporterPlansListB = [];
 let reporterPlansRequestId = 0;
 let lastReporterForm = null;
 
+function setReporterPlansHint(text, isError) {
+  if (!reporterPlansHintEl) return;
+  reporterPlansHintEl.textContent = text || REPORTER_PLANS_HINT_DEFAULT;
+  reporterPlansHintEl.classList.toggle("bad", Boolean(isError));
+}
+
 async function fetchReporterPlanList(projectId, currentIds) {
   const id = String(projectId || "").trim();
+  if (!id || id === "custom") return { plans: [], error: "" };
   const qs = new URLSearchParams();
-  if (id && id !== "custom") qs.set("projectId", id);
+  qs.set("projectId", id);
   if (currentIds && currentIds.length) qs.set("ids", currentIds.filter(Boolean).join(","));
   try {
     const res = await fetch(`/api/reporter/plans?${qs.toString()}`);
     const data = await res.json();
-    return data.ok && Array.isArray(data.plans) ? data.plans : [];
+    if (data.ok && Array.isArray(data.plans)) return { plans: data.plans, error: "" };
+    return {
+      plans: [],
+      error:
+        data.message ||
+        "Could not load plans from SimplifyQA. Paste a fresh token in Auth and try again.",
+    };
   } catch {
-    return [];
+    return { plans: [], error: "Could not reach the Hub to load plans." };
   }
 }
 
 async function loadReporterPlans(projectId) {
   const requestId = ++reporterPlansRequestId;
+  setReporterPlansHint("Loading plans from SimplifyQA…", false);
   if (isSitReporterTemplate()) {
     reporterPlansList = [];
     reporterPlansListB = [];
@@ -3144,15 +3178,18 @@ async function loadReporterPlans(projectId) {
     const idsA = rows.slice(0, 2).map((row) => readPlanIdFromRow(row)).filter(Boolean);
     const idsB = rows.slice(2, 3).map((row) => readPlanIdFromRow(row)).filter(Boolean);
     const a = readProjectIdFromSelect(reporterProjectIdEl, reporterProjectIdCustomEl);
-    const b = readProjectIdFromSelect(reporterProjectIdBEl, reporterProjectIdBCustomEl);
-    const [plansA, plansB] = await Promise.all([
+    const b = readProjectIdFromSelect(reporterProjectIdBEl, reporterProjectIdCustomEl);
+    const [resultA, resultB] = await Promise.all([
       fetchReporterPlanList(a, idsA),
       fetchReporterPlanList(b, idsB),
     ]);
     if (requestId !== reporterPlansRequestId) return;
-    reporterPlansList = plansA;
-    reporterPlansListB = plansB;
+    reporterPlansList = resultA.plans;
+    reporterPlansListB = resultB.plans;
     refreshReporterPlanSelects();
+    const err = resultA.error || resultB.error;
+    if (err) setReporterPlansHint(err, true);
+    else setReporterPlansHint(REPORTER_PLANS_HINT_DEFAULT, false);
     return;
   }
   const id = String(projectId || "").trim();
@@ -3162,10 +3199,12 @@ async function loadReporterPlans(projectId) {
   reporterPlansListB = [];
   reporterPlansList = [];
   refreshReporterPlanSelects();
-  const plans = await fetchReporterPlanList(id, currentIds);
+  const result = await fetchReporterPlanList(id, currentIds);
   if (requestId !== reporterPlansRequestId) return;
-  reporterPlansList = plans;
+  reporterPlansList = result.plans;
   refreshReporterPlanSelects();
+  if (result.error) setReporterPlansHint(result.error, true);
+  else setReporterPlansHint(REPORTER_PLANS_HINT_DEFAULT, false);
 }
 
 const CUSTOM_PROJECTS_KEY = "icea_reporter_custom_projects";
@@ -3386,6 +3425,9 @@ function readReporterForm() {
     planIds,
     includeDefects: reporterIncludeDefectsEl ? reporterIncludeDefectsEl.checked : true,
     includePdf: reporterIncludePdfEl ? reporterIncludePdfEl.checked : false,
+    excludeBlockedFromRates: reporterExcludeBlockedFromRatesEl
+      ? reporterExcludeBlockedFromRatesEl.checked
+      : false,
     defectSprint: reporterSprintFilterEl ? reporterSprintFilterEl.value.trim() : "",
     compareEntitySummary: reporterCompareEntitySummaryEl
       ? reporterCompareEntitySummaryEl.checked
@@ -3406,6 +3448,9 @@ function applyReporterForm(form) {
   }
   if (reporterIncludePdfEl && "includePdf" in form) {
     reporterIncludePdfEl.checked = form.includePdf === true;
+  }
+  if (reporterExcludeBlockedFromRatesEl && "excludeBlockedFromRates" in form) {
+    reporterExcludeBlockedFromRatesEl.checked = form.excludeBlockedFromRates === true;
   }
   if (reporterCompareEntitySummaryEl && "compareEntitySummary" in form) {
     reporterCompareEntitySummaryEl.checked = form.compareEntitySummary !== false;
@@ -3917,8 +3962,13 @@ function fillReporterEmailPack(pack) {
     reporterOpenOutlookWebBtn.href = pack.outlookWebUrl;
   }
   if (reporterEmailPackHintEl) {
+    const meta = findReporterTemplateMeta(
+      (reporterTemplateChoiceEl && reporterTemplateChoiceEl.value.trim()) || ""
+    );
+    const file = meta && meta.template ? String(meta.template) : "";
+    const kind = /uat/i.test(file) ? "UAT 1 Daily Status" : "SIT Daily Status";
     reporterEmailPackHintEl.textContent =
-      "Reply all on the existing SIT Daily Status thread. Copy Body pastes formatted tables (Entity Summary, module-wise status, defects) into Outlook. Then attach the Excel. Do not change To or CC.";
+      `Reply all on the existing ${kind} thread. Copy Body pastes formatted tables (Entity Summary, module-wise status, defects) into Outlook. Then attach the Excel. Do not change To or CC.`;
   }
   reporterEmailPackEl.classList.remove("hidden");
 }
@@ -3928,12 +3978,12 @@ async function prepareReporterEmailPack(runData, form) {
     (form && form.templateChoice) ||
     (runData && runData.runtime && runData.runtime.templateChoice) ||
     "";
-  if (String(templateChoice) !== "4" && !isSitReporterTemplate()) return;
+  if (!isSitReporterTemplate()) return;
   const res = await fetch("/api/reporter/email-pack", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      templateChoice: templateChoice || "4",
+      templateChoice: templateChoice || "",
       outputFile: runData && runData.outputFile,
       sheetName: runData && runData.sheetName,
       compareSheet: (form && form.compareSheet) || (runData && runData.comparedSheetName) || "",
@@ -3985,10 +4035,7 @@ function showReporterResult(data) {
     reporterResultLinksEl.appendChild(openExcel);
   }
 
-  if (
-    isSitReporterTemplate() ||
-    (data.runtime && String(data.runtime.templateChoice) === "4")
-  ) {
+  if (isSitReporterTemplate()) {
     const outlookA = document.createElement("a");
     outlookA.href = "#";
     outlookA.textContent = "Show copy-paste email";
@@ -4038,6 +4085,7 @@ function resetReporterForm() {
   updateReporterSitUi();
   if (reporterIncludeDefectsEl) reporterIncludeDefectsEl.checked = true;
   if (reporterIncludePdfEl) reporterIncludePdfEl.checked = false;
+  if (reporterExcludeBlockedFromRatesEl) reporterExcludeBlockedFromRatesEl.checked = false;
   if (reporterCompareEntitySummaryEl) reporterCompareEntitySummaryEl.checked = true;
   if (reporterCompareEntitySheetEl) reporterCompareEntitySheetEl.value = "";
   updateReporterEntityCompareUi();
@@ -4479,6 +4527,7 @@ async function runReporterGenerate(form) {
         planIds: form.planIds || [],
         includeDefects: form.includeDefects !== false,
         includePdf: form.includePdf === true,
+        excludeBlockedFromRates: form.excludeBlockedFromRates === true,
         defectSprint: form.defectSprint || "",
         compareEntitySummary: form.compareEntitySummary !== false,
         compareSheet: form.compareSheet || "",

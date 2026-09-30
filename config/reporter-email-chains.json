@@ -1,11 +1,27 @@
 {
   "4": {
     "enabled": true,
+    "templateMatch": "sit template.xlsx",
     "label": "SIT (QA) Daily Status",
     "search": "SIT (QA) Daily Status Report for Gen UG",
     "subjectTemplate": "RE:SIT (QA) Daily Status Report for Gen UG, Life UG & Gen TZ (As of {asOfDate})",
     "greeting": "Dear All,",
     "introTemplate": "Please find below the SIT (QA) Daily Status Report as of {asOfDate} for Gen UG, Life UG and Gen TZ (changes vs {compareDate}).",
+    "reportTitle": "SIT (QA) Daily Status Report",
+    "entitiesPhrase": "Gen UG, Life UG and Gen TZ",
+    "closing": "Please let us know if any additional details are required.\n\nThank you for your continued support.",
+    "attachExcel": true
+  },
+  "5": {
+    "enabled": true,
+    "templateMatch": "uat 1 status report.xlsx",
+    "label": "UAT 1 Daily Status",
+    "search": "UAT 1 Daily Status Report for Gen UG",
+    "subjectTemplate": "RE:UAT 1 Daily Status Report for Gen UG, Life UG & Gen TZ (As of {asOfDate})",
+    "greeting": "Dear All,",
+    "introTemplate": "Please find below the UAT 1 Daily Status Report as of {asOfDate} for Gen UG, Life UG and Gen TZ (changes vs {compareDate}).",
+    "reportTitle": "UAT 1 Daily Status Report",
+    "entitiesPhrase": "Gen UG, Life UG and Gen TZ",
     "closing": "Please let us know if any additional details are required.\n\nThank you for your continued support.",
     "attachExcel": true
   }

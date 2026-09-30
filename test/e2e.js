@@ -148,6 +148,7 @@ async function main() {
           planIds: ["23", "24", "99"],
           includeDefects: true,
           compareEntitySummary: true,
+          excludeBlockedFromRates: true,
         },
         tmpSel
       );
@@ -1362,6 +1363,71 @@ async function main() {
         /Thank you for your continued support/i.test(sitMail.text)
     );
 
+    const reporterMod = require("../lib/reporter/reporter");
+    ok(
+      "UAT 1 workbook is treated as dual-project like SIT",
+      reporterMod.isDualProjectTemplatePath("Template/UAT 1 Status report.xlsx") &&
+        reporterMod.isSitTemplateChoice("8", "Template/UAT 1 Status report.xlsx")
+    );
+    const uatChain = emailChain.getEmailChain("8", "Template/UAT 1 Status report.xlsx");
+    const uatMail = uatChain
+      ? emailChain.buildStatusEmail({
+          chain: uatChain,
+          asOfDate: "28-Sep-2026",
+          compareDate: "25-Sep-2026",
+        })
+      : null;
+    ok(
+      "UAT 1 email chain is found by file name, not only catalog slot 5",
+      Boolean(uatChain && uatMail) &&
+        /UAT 1 Daily Status Report/.test(uatMail.text) &&
+        /UAT 1 Daily Status Report/.test(uatMail.html) &&
+        !/SIT \(QA\) Daily Status Report/.test(uatMail.html)
+    );
+    ok(
+      "custom slot 5 does not inherit the UAT email chain",
+      emailChain.getEmailChain("5", "Template/Hub_Custom_Upload_Template.xlsx") == null
+    );
+    const uatListed = reporterMod.listTemplateChoices({
+      TEMPLATE_8: "Template/UAT 1 Status report.xlsx",
+      OUTPUT_FILE_8: "output/UAT 1 Status tracker.xlsx",
+    });
+    const uatMeta = uatListed.find((t) => String(t.choice) === "8");
+    ok(
+      "UAT catalog entry enables Entity Summary compare and two projects",
+      Boolean(uatMeta && uatMeta.sitDualProject)
+    );
+    const uatPath = path.join(ROOT, "Template", "UAT 1 Status report.xlsx");
+    if (fs.existsSync(uatPath)) {
+      const ExcelJS = require("exceljs");
+      const uatWb = new ExcelJS.Workbook();
+      await uatWb.xlsx.readFile(uatPath);
+      const entitySummary = require("../lib/reporter/entitySummary");
+      ok(
+        "UAT 1 template has Entity Summary headers to the right",
+        entitySummary.sheetHasEntitySummary(uatWb.worksheets[0])
+      );
+    }
+
+    const uatPack = await jsonReq(base, "/api/reporter/email-pack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        templateChoice: "8",
+        templateRelative: "Template/UAT 1 Status report.xlsx",
+        sheetName: "29-09-2026 10-00-00 AM",
+        compareSheet: "28-09-2026 12-40-36 PM",
+      }),
+    });
+    ok(
+      "reporter email-pack returns UAT 1 subject and body without Graph",
+      uatPack.data &&
+        uatPack.data.ok === true &&
+        uatPack.data.pack &&
+        /UAT 1 Daily Status Report/.test(uatPack.data.pack.subject || "") &&
+        /Dear All/.test(uatPack.data.pack.text || "")
+    );
+
     const emailPack = await jsonReq(base, "/api/reporter/email-pack", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1481,7 +1547,12 @@ async function main() {
     const indexHtml = fs.readFileSync(path.join(ROOT, "public", "index.html"), "utf8");
     ok("UI contains ICEA LION Reporter tab", indexHtml.includes('id="tabReporter"'));
     ok("UI contains viewReporter container", indexHtml.includes('id="viewReporter"'));
-    ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"') && indexHtml.includes('id="reporterSitProjectBWrap"') && indexHtml.includes('id="reporterDraftOutlook"'));
+    ok("UI contains reporter form and elements", indexHtml.includes('id="reporterForm"') && indexHtml.includes('id="reporterTemplateChoice"') && indexHtml.includes('id="reporterSitProjectBWrap"') && indexHtml.includes('id="reporterDraftOutlook"') && indexHtml.includes('id="reporterExcludeBlockedFromRates"'));
+    ok(
+      "exclude-blocked checkbox is unchecked by default",
+      /id="reporterExcludeBlockedFromRates"[^>]*>/.test(indexHtml) &&
+        !/<input[^>]*id="reporterExcludeBlockedFromRates"[^>]*\bchecked\b/.test(indexHtml)
+    );
     ok("UI contains Sprint 3 defect sprint filter field", indexHtml.includes('id="reporterSprint3Wrap"') && indexHtml.includes('id="reporterSprintFilter"'));
     ok(
       "UI contains SIT Entity Summary compare checkbox",
@@ -1514,6 +1585,8 @@ async function main() {
       preferenceHasProjectEntity,
       resolveDefectRowEntities,
       aggregateDefectExport,
+      labelsMatchDefectPhase,
+      dualProjectDefectPhase,
       entityCountsForSection,
       extraDefectModulesForSection,
       buildDefectSectionSummary,
@@ -1537,6 +1610,28 @@ async function main() {
     ok("pass rate 50 is red", passRateBand(0.5).hex === "#FF0000");
     ok("pass rate above 50 through 80 is amber", passRateBand(0.8).hex === "#FFC000");
     ok("pass rate above 80 is green", passRateBand(0.81).hex === "#92D050");
+    const rateFormulas = require("../lib/reporter/rateFormulas");
+    ok(
+      "exclude-blocked is off unless explicitly true",
+      rateFormulas.excludeBlockedEnabled() === false &&
+        rateFormulas.excludeBlockedEnabled(false) === false &&
+        rateFormulas.excludeBlockedEnabled(true) === true
+    );
+    ok(
+      "excluding blocked uses Total − Blocked for Pass Rate and Execution Rate",
+      rateFormulas.passRate(8, 10, 2, true) === 1 &&
+        rateFormulas.executionRate(5, 3, 10, 2, true) === 1
+    );
+    ok(
+      "including blocked uses Total for Pass Rate and Execution Rate (numerator still Passed + Failed)",
+      rateFormulas.passRate(8, 10, 2, false) === 0.8 &&
+        rateFormulas.executionRate(5, 3, 10, 2, false) === 0.8
+    );
+    ok(
+      "Excel Pass Rate formula drops Blocked when include-blocked is on",
+      rateFormulas.excelPassRateFormula("D", "I", "F", 10, true) === "D10/(I10-F10)" &&
+        rateFormulas.excelPassRateFormula("D", "I", "F", 10, false) === "D10/I10"
+    );
     ok(
       "Entity in export columns is detected without touching preference",
       defectExportHasEntityColumn(["ID", "Module", "Entity", "State"]) &&
@@ -2047,6 +2142,51 @@ async function main() {
     );
     try {
       fs.unlinkSync(sprintXlsx);
+    } catch {}
+    ok(
+      "SIT vs UAT defect phase is taken from the template file",
+      dualProjectDefectPhase("Template/SIT Template.xlsx") === "sit" &&
+        dualProjectDefectPhase("Template/UAT 1 Status report.xlsx") === "uat" &&
+        dualProjectDefectPhase("Template/FMS Status tracker.xlsx") == null
+    );
+    ok(
+      "Gen SIT / Life SIT labels count on SIT and not on UAT",
+      labelsMatchDefectPhase("Gen SIT", "sit") &&
+        labelsMatchDefectPhase("Life SIT", "sit") &&
+        !labelsMatchDefectPhase("Gen SIT", "uat") &&
+        !labelsMatchDefectPhase("Life UAT", "sit") &&
+        labelsMatchDefectPhase("", "uat") &&
+        !labelsMatchDefectPhase("", "sit")
+    );
+    const phaseXlsx = path.join(os.tmpdir(), `sit-uat-labels-${Date.now()}.xlsx`);
+    XLSXlib.writeFile(
+      {
+        SheetNames: ["d"],
+        Sheets: {
+          d: XLSXlib.utils.aoa_to_sheet([
+            ["Module", "ENTITY", "Labels", "State"],
+            ["Budgeting", "General Uganda", "Gen SIT", "New"],
+            ["Budgeting", "Life Uganda", "Life SIT", "New"],
+            ["Budgeting", "General Uganda", "Gen UAT", "New"],
+            ["Budgeting", "Life Uganda", "Life UAT", "New"],
+            ["Budgeting", "General Uganda", "", "New"],
+          ]),
+        },
+      },
+      phaseXlsx
+    );
+    const sitPhaseAgg = aggregateDefectExport(phaseXlsx, { phaseFilter: "sit" });
+    const uatPhaseAgg = aggregateDefectExport(phaseXlsx, { phaseFilter: "uat" });
+    ok(
+      "SIT report keeps SIT-labelled defects and skips UAT and blank Labels",
+      sitPhaseAgg.mappedRows === 2 && sitPhaseAgg.skippedPhase === 3
+    );
+    ok(
+      "UAT report keeps UAT-labelled defects and blank Labels, skips SIT",
+      uatPhaseAgg.mappedRows === 3 && uatPhaseAgg.skippedPhase === 2
+    );
+    try {
+      fs.unlinkSync(phaseXlsx);
     } catch {}
     ok("UI contains Weekly PPT Report tab", indexHtml.includes('id="tabPpt"') && indexHtml.includes('id="viewPpt"') && indexHtml.includes('id="pptForm"'));
 

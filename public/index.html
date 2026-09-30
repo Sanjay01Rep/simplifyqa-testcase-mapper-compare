@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=1.6.0" />
+    <link rel="stylesheet" href="/styles.css?v=1.7.0" />
   </head>
   <body>
     <header class="topbar">
@@ -34,7 +34,7 @@
             <span class="server-bot-icon" aria-hidden="true">🤖</span>
             <span class="server-bot-text" id="serverBotText">Checking…</span>
           </button>
-          <span class="version-badge" id="appVersion" title="App version">v1.6.0</span>
+          <span class="version-badge" id="appVersion" title="App version">v1.7.0</span>
           <img id="logoRight" class="logo simplify" src="/logo/Simplify-icon.png" alt="" />
           <span class="simplify-label">Simplify3x</span>
         </div>
@@ -652,6 +652,7 @@
                       <option value="2">2 · Template/FMS 4 EP template.xlsx (4 EP blocks)</option>
                       <option value="3">3 · Template/E2E Report.xlsx (2 E2E blocks)</option>
                       <option value="4">4 · Template/SIT Template.xlsx (3 SIT blocks, Uganda + Tanzania)</option>
+                      <option value="5">5 · Template/UAT 1 Status report.xlsx (3 UAT blocks, Uganda + Tanzania)</option>
                     </select>
                     <p class="hint template-hint" id="reporterTemplateHint"></p>
                     <p class="hint">After a successful generate, this template’s projects, plans, and options are remembered for the next run and the schedule.</p>
@@ -679,7 +680,7 @@
                       class="hidden"
                       style="margin-top: 0.45rem;"
                     />
-                    <p class="hint">SIT fills General Uganda + Life Uganda from Project A, and General Tanzania from Project B. Lead Champion names stay as in the template.</p>
+                    <p class="hint">Fills General Uganda + Life Uganda from Project A, and General Tanzania from Project B. Lead Champion names stay as in the template.</p>
                   </div>
                 </div>
 
@@ -725,6 +726,16 @@
                   </label>
                 </div>
 
+                <label class="check-row">
+                  <input type="checkbox" id="reporterExcludeBlockedFromRates" />
+                  <span>Exclude blocked test cases from rates</span>
+                </label>
+                <p class="hint">
+                  Unchecked (default): Execution Rate and Pass Rate use Total.
+                  Checked: use Total − Blocked.
+                  Execution Rate is always Passed + Failed.
+                </p>
+
                 <div class="hidden" id="reporterEntityCompareWrap">
                   <label class="check-row">
                     <input type="checkbox" id="reporterCompareEntitySummary" checked />
@@ -736,7 +747,7 @@
                       <option value="">Previous dated sheet (auto)</option>
                     </select>
                     <p class="hint">
-                      SIT only. Leave on auto to compare this run with the previous dated sheet.
+                      SIT and UAT 1. Leave on auto to compare this run with the previous dated sheet.
                       Pick a sheet if you want a different run.
                     </p>
                   </div>
@@ -745,7 +756,7 @@
                     <span>Show copy-paste email after generate</span>
                   </label>
                   <p class="hint" id="reporterOutlookHint">
-                    SIT only. After generate, the Hub shows Subject and Body with a Copy button next to each. Reply all on the existing Daily Status thread, paste, attach the Excel. Leave To and CC unchanged.
+                    SIT and UAT 1. After generate, the Hub shows Subject and Body with a Copy button next to each. Reply all on the existing Daily Status thread, paste, attach the Excel. Leave To and CC unchanged.
                   </p>
                   <div class="btn-row" style="margin-top: 0.35rem;">
                     <button type="button" class="btn ghost" id="reporterOutlookConnectBtn">
@@ -781,7 +792,7 @@
                 <div class="hidden" id="reporterEmailPack" style="margin-top: 0.85rem;">
                   <h4>Copy-paste email</h4>
                   <p class="hint" id="reporterEmailPackHint">
-                    Reply all on the existing SIT Daily Status thread. Click Copy next to Subject or Body, paste in Outlook, then attach the Excel. Do not change To or CC.
+                    Reply all on the existing Daily Status thread. Click Copy next to Subject or Body, paste in Outlook, then attach the Excel. Do not change To or CC.
                   </p>
                   <div class="field-head">
                     <label for="reporterEmailSubject">Subject</label>
@@ -1076,6 +1087,6 @@
         </p>
       </footer>
     </div>
-    <script src="/app.js?v=1.6.0"></script>
+    <script src="/app.js?v=1.7.0"></script>
   </body>
 </html>
